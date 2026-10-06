@@ -1,12 +1,17 @@
 #!/usr/bin/env python3
 """Generate spec/layouts/split-qwerty.json.
 
-Classic QWERTY split where touch typists split their hands, with a centre
-cluster for the thumbs: navigation on top (arrows in an inverted T with
-Home/End/PgUp/PgDn/Ins/Del around them), then big Shift, Ctrl and Enter
-with Fn, Super and Alt. Every modifier lives in the centre only; each half
-keeps the classic row stagger, square letter keys, and its own space bar
-under the letters.
+A column-based (ortho) QWERTY split for two thumbs on a landscape phone:
+
+- The letter columns sit on the outer screen edges, where thumbs are: Q/A/Z
+  and 1 on the far left, P/;// and 0 on the far right. Each half has its own
+  space bar under its letters.
+- The right half has one inner column for the right-hand symbols - [ ' ] \\.
+- Everything else is in the centre: Tab, Caps, Esc, ` and =, navigation
+  (arrows in an inverted T with Home/End/PgUp/PgDn/Ins/Del), and the big
+  Shift, Enter, Ctrl and Backspace with Fn, Super and Alt.
+
+Keys are square; the F row is shorter and the space row a little taller.
 
     python3 scripts/gen-split-qwerty.py
 """
@@ -18,12 +23,14 @@ OUT = Path(__file__).resolve().parent.parent / "spec" / "layouts" / "split-qwert
 FROW_H = 0.85  # the F-key row is shorter, as on a laptop
 ROW_H = 1.0  # number and letter rows: square keys
 SPACE_H = 1.25  # the space row is a little taller, for thumbs
-GAP = 0.25  # between a half and the centre cluster
+GAP = 0.25  # between a half and the centre
 
-LEFT_W = 7.25  # widest left row (the Z row)
-CENTER_X = LEFT_W + GAP
-CENTER_W = 5.0
-RIGHT_X = CENTER_X + CENTER_W + GAP - 6  # classic x of the "6" key lands here
+LEFT_X = 0.0
+LEFT_COLS = 5
+CENTER_X = LEFT_X + LEFT_COLS + GAP
+CENTER_COLS = 6
+RIGHT_X = CENTER_X + CENTER_COLS + GAP  # the right half's inner symbol column
+RIGHT_LETTERS_X = RIGHT_X + 1
 
 MEDIA = {
     "F1": ("MUTE", "Mute"), "F2": ("VOLUMEDOWN", "Vol-"), "F3": ("VOLUMEUP", "Vol+"),
@@ -31,6 +38,9 @@ MEDIA = {
     "F7": ("PREVIOUSSONG", "Prev"), "F8": ("PLAYPAUSE", "Play"), "F9": ("NEXTSONG", "Next"),
     "F10": ("STOPCD", "Stop"),
 }
+SHIFTED = {"1": "!", "2": "@", "3": "#", "4": "$", "5": "%", "6": "^", "7": "&", "8": "*", "9": "(",
+           "0": ")", "MINUS": "_", "EQUAL": "+", "LEFTBRACE": "{", "RIGHTBRACE": "}", "BACKSLASH": "|",
+           "APOSTROPHE": "\"", "SEMICOLON": ":", "COMMA": "<", "DOT": ">", "SLASH": "?", "GRAVE": "~"}
 
 keys = []
 ids = set()
@@ -44,78 +54,81 @@ def row_h(r):
     return FROW_H if r == 0 else SPACE_H if r == 5 else ROW_H
 
 
-def add(code, label, x, y, w, h, sub=None, style=None, fn=None, kid=None, layer=None):
+def span_h(r0, r1):
+    """Height of rows r0..r1 inclusive."""
+    return row_y(r1) + row_h(r1) - row_y(r0)
+
+
+def add(code, label, x, r, w=1, rows=1, style=None, kid=None, layer=None):
     kid = kid or (layer or code).lower()
     base, n = kid, 2
     while kid in ids:
         kid, n = f"{base}-{n}", n + 1
     ids.add(kid)
-    k = {"id": kid, "x": round(x, 4), "y": round(y, 4), "w": w, "h": round(h, 4), "label": label}
+    k = {"id": kid, "x": round(x, 4), "y": round(row_y(r), 4), "w": w,
+         "h": round(span_h(r, r + rows - 1), 4), "label": label}
     if layer:
         k["layer"] = layer
     else:
         k["code"] = "KEY_" + code
-    if sub:
-        k["sub"] = sub
-    if fn:
-        k["layers"] = {"fn": {"code": "KEY_" + fn[0], "label": fn[1]}}
+        if code in SHIFTED:
+            k["sub"] = SHIFTED[code]
+        if code in MEDIA:
+            k["layers"] = {"fn": {"code": "KEY_" + MEDIA[code][0], "label": MEDIA[code][1]}}
     if style:
         k["style"] = style
     keys.append(k)
 
 
-def row(r, x0, items):
-    """items: (code, label, width[, sub[, style]]); code None leaves a gap."""
-    x = x0
-    for it in items:
-        code, label, w = it[0], it[1], it[2]
-        sub = it[3] if len(it) > 3 else None
-        style = it[4] if len(it) > 4 else None
-        if code:
-            add(code, label, x, row_y(r), w, row_h(r), sub=sub, style=style, fn=MEDIA.get(code))
-        x += w
+def columns(x0, r, items, style=None):
+    for i, it in enumerate(items):
+        code, label = it if isinstance(it, tuple) else (it, it)
+        add(code, label, x0 + i, r, style=style)
 
 
 M = "mod"
-digits_l = [(str(d), str(d), 1, s) for d, s in zip("12345", "!@#$%")]
-digits_r = [(str(d), str(d), 1, s) for d, s in zip("67890", "^&*()")]
-letters = lambda s: [(c, c, 1) for c in s]
 
-# ---- left half (classic x positions) ----
-row(0, 0, [("ESC", "Esc", 1, None, M)] + [(f"F{i}", f"F{i}", 1, None, "fkey") for i in range(1, 7)])
-row(1, 0, [("GRAVE", "`", 1, "~")] + digits_l)
-row(2, 0, [("TAB", "Tab", 1.5, None, M)] + letters("QWERT"))
-row(3, 0, [("CAPSLOCK", "Caps", 1.75, None, M)] + letters("ASDFG"))
-row(4, 2.25, letters("ZXCVB"))
-row(5, 2.25, [("SPACE", "", 5, None, "space")])
+# ---- left half: letters on the left edge ----
+columns(LEFT_X, 0, [(f"F{i}", f"F{i}") for i in range(1, 6)], style="fkey")
+columns(LEFT_X, 1, list("12345"))
+columns(LEFT_X, 2, list("QWERT"))
+columns(LEFT_X, 3, list("ASDFG"))
+columns(LEFT_X, 4, list("ZXCVB"))
+add("SPACE", "", LEFT_X, 5, w=LEFT_COLS, style="space", kid="space-left")
 
-# ---- right half (classic x positions, shifted) ----
-X = RIGHT_X
-row(0, X + 6, [(f"F{i}", f"F{i}", 1, None, "fkey") for i in range(7, 13)]
-    + [("SYSRQ", "PrtSc", 1.5, None, M), ("COMPOSE", "Menu", 1.5, None, M)])
-row(1, X + 6, digits_r + [("MINUS", "-", 1, "_"), ("EQUAL", "=", 1, "+"), ("BACKSPACE", "⌫", 2, None, M)])
-row(2, X + 6.5, letters("YUIOP") + [("LEFTBRACE", "[", 1, "{"), ("RIGHTBRACE", "]", 1, "}"),
-                                    ("BACKSLASH", "\\", 1.5, "|")])
-row(3, X + 6.75, letters("HJKL") + [("SEMICOLON", ";", 1, ":"), ("APOSTROPHE", "'", 1, "\"")])
-row(4, X + 7.25, letters("NM") + [("COMMA", ",", 1, "<"), ("DOT", ".", 1, ">"), ("SLASH", "/", 1, "?")])
-row(5, X + 7.25, [("SPACE", "", 5, None, "space")])
+# ---- right half: letters on the right edge, symbols in the inner column ----
+add("F7", "F7", RIGHT_X, 0, style="fkey")
+columns(RIGHT_LETTERS_X, 0, [(f"F{i}", f"F{i}") for i in range(8, 13)], style="fkey")
+for r, (code, label) in enumerate([("MINUS", "-"), ("LEFTBRACE", "["), ("APOSTROPHE", "'"),
+                                   ("RIGHTBRACE", "]"), ("BACKSLASH", "\\")], start=1):
+    add(code, label, RIGHT_X, r)
+columns(RIGHT_LETTERS_X, 1, list("67890"))
+columns(RIGHT_LETTERS_X, 2, list("YUIOP"))
+columns(RIGHT_LETTERS_X, 3, list("HJKL") + [("SEMICOLON", ";")])
+columns(RIGHT_LETTERS_X, 4, list("NM") + [("COMMA", ","), ("DOT", "."), ("SLASH", "/")])
+add("SPACE", "", RIGHT_LETTERS_X, 5, w=5, style="space", kid="space-right")
 
-# ---- centre cluster ----
+# ---- centre ----
 C = CENTER_X
-for i, (code, label) in enumerate([("PAGEUP", "PgUp"), ("HOME", "Home"), ("UP", "↑"), ("END", "End"),
-                                   ("PAGEDOWN", "PgDn")]):
-    add(code, label, C + i, row_y(0), 1, row_h(0), style=M)
-for i, (code, label) in enumerate([("INSERT", "Ins"), ("LEFT", "←"), ("DOWN", "↓"), ("RIGHT", "→"),
-                                   ("DELETE", "Del")]):
-    add(code, label, C + i, row_y(1), 1, row_h(1), style=M)
+add("F6", "F6", C, 0, style="fkey")
+columns(C + 1, 0, [("ESC", "Esc"), ("SYSRQ", "PrtSc"), ("INSERT", "Ins"), ("DELETE", "Del"),
+                   ("COMPOSE", "Menu")], style=M)
+columns(C, 1, [("GRAVE", "`"), ("TAB", "Tab")])
+columns(C + 2, 1, [("HOME", "Home"), ("UP", "↑"), ("END", "End"), ("PAGEUP", "PgUp")], style=M)
+columns(C, 2, [("EQUAL", "="), ("CAPSLOCK", "Caps")])
+columns(C + 2, 2, [("LEFT", "←"), ("DOWN", "↓"), ("RIGHT", "→"), ("PAGEDOWN", "PgDn")], style=M)
+for k in keys:  # Tab and Caps are modifiers in looks
+    if k["id"] in ("tab", "capslock"):
+        k["style"] = M
 
-top = row_y(2)
-add("LEFTSHIFT", "Shift", C, top, 2, 2 * ROW_H, style=M, kid="center-shift")
-add(None, "Fn", C + 2, top, 1, 2 * ROW_H, style=M, layer="fn")
-add("ENTER", "Enter", C + 3, top, 2, 3 * ROW_H, style="accent", kid="center-enter")
-add("LEFTCTRL", "Ctrl", C, top + 2 * ROW_H, 2, ROW_H + SPACE_H, style=M, kid="center-ctrl")
-add("LEFTMETA", "Super", C + 2, top + 2 * ROW_H, 1, ROW_H + SPACE_H, style=M, kid="center-super")
-add("LEFTALT", "Alt", C + 3, top + 3 * ROW_H, 2, SPACE_H, style=M, kid="center-alt")
+add("LEFTSHIFT", "Shift", C, 3, w=2, rows=2, style=M, kid="center-shift")
+add(None, "Fn", C + 2, 3, style=M, layer="fn")
+add("LEFTMETA", "Super", C + 3, 3, style=M, kid="center-super")
+add("ENTER", "Enter", C + 4, 3, w=2, rows=2, style="accent", kid="center-enter")
+add("LEFTALT", "Alt", C + 2, 4, style=M, kid="center-alt")
+add("RIGHTALT", "AltGr", C + 3, 4, style=M, kid="center-altgr")
+add("LEFTCTRL", "Ctrl", C, 5, w=4, style=M, kid="center-ctrl")
+add("BACKSPACE", "⌫", C + 4, 5, w=2, style=M, kid="center-backspace")
 
 width = max(k["x"] + k["w"] for k in keys)
 height = row_y(5) + SPACE_H
@@ -125,9 +138,9 @@ layout = {
     "id": "split-qwerty",
     "name": "Split QWERTY",
     "author": "Omakey",
-    "description": "QWERTY split by hand with square letters and a space bar under each half. Every "
-                   "modifier is in the centre thumb cluster: big Enter, Shift and Ctrl with Fn, Super "
-                   "and Alt, under arrows, Home/End, PgUp/PgDn and Ins/Del.",
+    "description": "Column-based QWERTY split for two thumbs: letters on the outer edges with a space bar "
+                   "under each half, and everything else in the centre: Tab, Caps, Esc, navigation, and "
+                   "big Shift, Enter, Ctrl and Backspace with Fn, Super and Alt.",
     "width": round(width, 4),
     "height": round(height, 4),
     "keys": keys,
