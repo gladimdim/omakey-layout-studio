@@ -37,7 +37,8 @@ TOP_GAP = 0.15  # between the top row and the F row
 FROW_H = 0.85  # the F-key row is shorter, as on a laptop
 F_GAP = 0.2  # sets the F row apart from the number and letter block
 ROW_H = 1.0  # number and letter rows: square keys
-SPACE_H = 1.25  # the space row is a little taller, for thumbs
+SPACE_GAP = 0.3  # sets the space row apart from the letters: 30% of a letter key
+SPACE_H = 1.25 - SPACE_GAP  # the space row pays for its gap, so the board keeps its height
 GAP = 0.2  # between a half's letters and its island
 SPLIT_GAP = 1.5  # between the islands; the app widens it further on wider screens
 
@@ -70,7 +71,10 @@ def row_y(r):
     if r == TOP:
         return 0.0
     f = TOP_H + TOP_GAP
-    return f if r == 0 else f + FROW_H + F_GAP + (r - 1) * ROW_H
+    if r == 0:
+        return f
+    y = f + FROW_H + F_GAP + (r - 1) * ROW_H
+    return y + SPACE_GAP if r == 5 else y
 
 
 def row_h(r):
@@ -178,8 +182,10 @@ add("DELETE", "Del", L + ISLAND_COLS, 0, w=SPLIT_GAP, rows=2, style=M, kid="cent
 
 # ---- Enter: |_| across both islands ----
 # The label sits on the bar, which crosses the split and stretches with it.
+# The uprights reach down across the space-row gap to meet the bar.
+upright = {"y": round(row_y(3), 4), "w": 2, "h": round(row_y(5) - row_y(3), 4)}
 add("ENTER", "Enter", L + 2, 5, w=round(R + 2 - (L + 2), 4), style="accent", kid="center-enter",
-    parts=[rect(L + 2, 3, 2, 2), rect(R, 3, 2, 2)])
+    parts=[{"x": round(L + 2, 4), **upright}, {"x": round(R, 4), **upright}])
 
 width = max(k["x"] + k["w"] for k in keys)
 height = row_y(5) + SPACE_H
