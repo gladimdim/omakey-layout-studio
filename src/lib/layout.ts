@@ -1,11 +1,14 @@
 import classic from "../../spec/layouts/classic-qwerty.json";
-import split from "../../spec/layouts/split-qwerty.json";
 import { defaultLabel } from "./keycodes";
 import type { Layout, LayoutKey } from "./types";
 
 export const CLASSIC_QWERTY = classic as Layout;
-export const SPLIT_QWERTY = split as Layout;
-export const STOCK_LAYOUTS: Layout[] = [CLASSIC_QWERTY, SPLIT_QWERTY];
+
+// Every layout in spec/layouts, Classic QWERTY first, then by name.
+const stockModules = import.meta.glob("../../spec/layouts/*.json", { eager: true, import: "default" });
+export const STOCK_LAYOUTS: Layout[] = Object.values(stockModules)
+  .map((m) => m as Layout)
+  .sort((a, b) => (a.id === CLASSIC_QWERTY.id ? -1 : b.id === CLASSIC_QWERTY.id ? 1 : a.name.localeCompare(b.name)));
 
 export const STEP = 0.25;
 
