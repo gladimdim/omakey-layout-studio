@@ -157,6 +157,9 @@ export const Canvas = forwardRef<HTMLDivElement, Props>(function Canvas(
             onHandleDown={onHandleDown}
           />
         ))}
+        {layout.splitAt !== undefined && (
+          <div className="split-line" style={{ left: offset + layout.splitAt * zoom, top: offset, height: layout.height * zoom }} />
+        )}
         {marquee && <div className="marquee" style={{ left: marquee.x, top: marquee.y, width: marquee.w, height: marquee.h }} />}
       </div>
     </div>

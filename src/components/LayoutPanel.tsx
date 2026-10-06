@@ -36,9 +36,22 @@ export function LayoutPanel({ layout, autoFit, onAutoFit, onApply }: Props) {
         <NumberField label="Width (u)" value={layout.width} min={0.25} max={LIMITS.maxWidth} onChange={(v) => !autoFit && set("width", v)} />
         <NumberField label="Height (u)" value={layout.height} min={0.25} max={LIMITS.maxHeight} onChange={(v) => !autoFit && set("height", v)} />
       </div>
+      <label className="check">
+        <input
+          type="checkbox"
+          checked={layout.splitAt !== undefined}
+          onChange={(e) => set("splitAt", e.target.checked ? Math.round(layout.width) / 2 : undefined)}
+        />
+        Split keyboard
+      </label>
+      {layout.splitAt !== undefined && (
+        <NumberField label="Split at (u)" value={layout.splitAt} min={0.25} max={layout.width - 0.25} onChange={(v) => set("splitAt", v)} />
+      )}
       <p className="hint">
         {layout.keys.length} keys. The phone scales the {layout.width}×{layout.height} area to fit its screen
         and keeps the aspect ratio.
+        {layout.splitAt !== undefined &&
+          ` Keys right of the dashed line at ${layout.splitAt}u are the right side: on a wider screen each side moves to its edge and the split grows.`}
       </p>
     </div>
   );

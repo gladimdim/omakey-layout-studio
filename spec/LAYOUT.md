@@ -33,6 +33,22 @@ screen and keeps the aspect ratio. Keys may sit anywhere, so split, ortho and
 column-staggered layouts work. Keys should not overlap; the app gives a touch
 to the key drawn last.
 
+### Split layouts
+
+A split keyboard sets `splitAt`, a position in units:
+
+```json
+{ "width": 15, "height": 4.7, "splitAt": 7.5, "keys": [] }
+```
+
+Keys whose `x` is at least `splitAt` are the right side; the rest are the
+left side. When the screen is wider than the layout, the app puts the left
+side against the left edge and the right side against the right edge, and
+the extra width goes into the split, so each half stays under its thumb.
+Keys keep their size. On a narrower screen the layout is drawn as usual.
+Keys should not straddle `splitAt`. The space between the two sides
+receives no touches.
+
 ## Keys
 
 | field    | type   | required | meaning |

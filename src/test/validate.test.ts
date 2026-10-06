@@ -14,6 +14,22 @@ describe("validateLayout", () => {
     expect(validateLayout(layout)).toEqual([]);
   });
 
+  it("checks splitAt: inside the layout, and warns when a key straddles it", () => {
+    const l = cloneLayout(CLASSIC_QWERTY);
+    expect(validateLayout({ ...l, splitAt: 0 }).some((i) => i.severity === "error")).toBe(true);
+    expect(validateLayout({ ...l, splitAt: 99 }).some((i) => i.severity === "error")).toBe(true);
+    // x=7.5 cuts through the space bar.
+    const issues = validateLayout({ ...l, splitAt: 7.5 });
+    expect(hasErrors(issues)).toBe(false);
+    expect(issues.some((i) => i.severity === "warning" && i.message.includes("straddles"))).toBe(true);
+  });
+
+  it("keeps splitAt through cleanLayout and drops it when out of range", () => {
+    const l = cloneLayout(CLASSIC_QWERTY);
+    expect(cleanLayout({ ...l, splitAt: 6.5 }).splitAt).toBe(6.5);
+    expect("splitAt" in cleanLayout({ ...l, splitAt: 40 })).toBe(false);
+  });
+
   it("accepts the blank starter layout", () => {
     expect(hasErrors(validateLayout(blankLayout()))).toBe(false);
   });

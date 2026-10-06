@@ -73,8 +73,27 @@ def key_id(r):
     return name
 
 
-def build(lid, name, description, positions, base, layers=None):
-    """positions: [(x, y, w, h)], base: [token], layers: {name: [token or None]}."""
+MIN_SPLIT_GAP = 0.5  # the app widens the split to fill the screen
+
+
+def compact_split(keys, split_at):
+    """Close the gap between the halves down to MIN_SPLIT_GAP and return the
+    new split point. The app opens it again to fit the screen."""
+    left = [k for k in keys if k["x"] < split_at]
+    right = [k for k in keys if k["x"] >= split_at]
+    overlapping = [r["x"] - (l["x"] + l["w"]) for l in left for r in right
+                   if l["y"] < r["y"] + r["h"] and r["y"] < l["y"] + l["h"]]
+    gap = min(overlapping) if overlapping else min(r["x"] for r in right) - max(l["x"] + l["w"] for l in left)
+    room = min(r["x"] for r in right) - max(l["x"] for l in left) - 0.25
+    shift = max(0.0, min(gap - MIN_SPLIT_GAP, room))
+    for k in right:
+        k["x"] = round(k["x"] - shift, 4)
+    return round(min(r["x"] for r in right), 4)
+
+
+def build(lid, name, description, positions, base, layers=None, split_at=None):
+    """positions: [(x, y, w, h)], base: [token], layers: {name: [token or None]}.
+    split_at: x in units where the right half starts, for split keyboards."""
     assert len(positions) == len(base), (lid, len(positions), len(base))
     layers = layers or {}
     for lname, toks in layers.items():
@@ -106,12 +125,16 @@ def build(lid, name, description, positions, base, layers=None):
         if r.get("style"):
             k["style"] = r["style"]
         keys.append(k)
+    split = compact_split(keys, split_at) if split_at is not None else None
     width = max(k["x"] + k["w"] for k in keys)
     height = max(k["y"] + k["h"] for k in keys)
     layout = {"format": "omakey-layout", "version": 1, "id": lid, "name": name, "author": "Omakey",
-              "description": description, "width": round(width, 4), "height": round(height, 4), "keys": keys}
+              "description": description, "width": round(width, 4), "height": round(height, 4)}
+    if split is not None:
+        layout["splitAt"] = split
+    layout["keys"] = keys
     (OUT / f"{lid}.json").write_text(json.dumps(layout, ensure_ascii=False, indent=1) + "\n")
-    print(f"{lid}: {len(keys)} keys, {layout['width']} x {layout['height']}")
+    print(f"{lid}: {len(keys)} keys, {layout['width']} x {layout['height']}, split at {split}")
 
 
 def toks(s):
@@ -230,6 +253,7 @@ build(
                       "_ _ _ _ _ _  Home PgDn PgUp End _ _ "
                       "_ _ _  _ _ _"),
     },
+    split_at=7.5,
 )
 
 # ---- Ferris Sweep, LAYOUT_split_3x5_2 ----
@@ -260,6 +284,7 @@ build(
                     "` \\ ' Del Enter  Enter Mute Vol- Vol+ Play "
                     "_ _  _ _"),
     },
+    split_at=6,
 )
 
 # ---- Lily58 ----
@@ -298,6 +323,7 @@ build(
                       "_ _ _ _ _ _ _ _ _ _ _ _ _ _ "
                       "_ _ _ _  _ _ Del _"),
     },
+    split_at=8,
 )
 
 # ---- ErgoDox, LAYOUT_ergodox_pretty ----
@@ -347,6 +373,7 @@ build(
                 "_ Bri- Bri+ _ _ _ _  _ _ _ _ _ _ _ "
                 "_ _ _ Home End  _ _ _ _ _ "
                 "_ _ _ _ _ _ _ Del _ _ _ _")},
+    split_at=8,
 )
 
 # ---- Kinesis Advantage ----
@@ -380,6 +407,7 @@ build(
          "Shift z x c v b  n m , . / RShift "
          "` Ins Left Right  Up Down [ ] "
          "Ctrl Alt RSuper RCtrl Home PgUp Bksp Del End PgDn Enter Space"),
+    split_at=7.5,
 )
 
 # ---- Alice (TGR Alice) ----
@@ -414,4 +442,5 @@ build(
                 "End _ _ _ _ _ _  _ Left Down Right _ _ _ "
                 "_ _ _ _ _ _  _ _ Mute Vol- Vol+ Play _ _ "
                 "_ _ _ _  _ _ _")},
+    split_at=9,
 )

@@ -32,6 +32,12 @@ export interface Layout {
   description?: string;
   width: number;
   height: number;
+  /**
+   * Optional split point in units. Keys with x >= splitAt are the right side;
+   * on a screen wider than the layout the app pins each side to its edge and
+   * puts the extra width into the split.
+   */
+  splitAt?: number;
   keys: LayoutKey[];
 }
 

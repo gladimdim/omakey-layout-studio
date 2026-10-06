@@ -15,7 +15,7 @@ export interface Issue {
 }
 
 const LAYOUT_FIELDS = new Set([
-  "format", "version", "id", "name", "author", "description", "width", "height", "keys",
+  "format", "version", "id", "name", "author", "description", "width", "height", "splitAt", "keys",
 ]);
 const KEY_FIELDS = new Set([
   "id", "x", "y", "w", "h", "label", "sub", "code", "layer", "style", "layers",
@@ -65,6 +65,9 @@ export function validateLayout(input: unknown): Issue[] {
   const heightOk = isNum(l.height) && l.height > 0 && l.height <= LIMITS.maxHeight;
   if (!widthOk) err(`"width" must be a number above 0 and at most ${LIMITS.maxWidth}.`);
   if (!heightOk) err(`"height" must be a number above 0 and at most ${LIMITS.maxHeight}.`);
+  const split = l.splitAt;
+  const splitOk = split === undefined || (isNum(split) && split > 0 && (!widthOk || split < (l.width as number)));
+  if (!splitOk) err(`"splitAt" must be a number between 0 and the layout width.`);
 
   if (!Array.isArray(l.keys)) {
     err('"keys" must be an array.');
@@ -157,6 +160,8 @@ export function validateLayout(input: unknown): Issue[] {
       rects.push(r);
       if (widthOk && heightOk && (r.x + r.w > (l.width as number) + EPS || r.y + r.h > (l.height as number) + EPS))
         warn(`${name} sticks out of the ${l.width}×${l.height} layout area.`, i, id);
+      if (splitOk && isNum(split) && r.x < split - EPS && r.x + r.w > split + EPS)
+        warn(`${name} straddles the split at ${split}; it stays with the left side and the gap opens through it.`, i, id);
     }
   });
 

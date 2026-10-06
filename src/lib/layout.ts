@@ -128,7 +128,8 @@ export function cleanLayout(l: Layout): Layout {
   if (l.description) out.description = l.description;
   // Keep the spec's field order: meta first, then geometry, then keys.
   const { keys, width, height, ...meta } = out;
-  return { ...meta, width, height, keys };
+  const splitAt = typeof l.splitAt === "number" && l.splitAt > 0 && l.splitAt < l.width ? round(l.splitAt) : undefined;
+  return splitAt === undefined ? { ...meta, width, height, keys } : { ...meta, width, height, splitAt, keys };
 }
 
 /** What a key shows and sends on a layer ("" = base). */
