@@ -4,12 +4,9 @@
 Classic QWERTY split where touch typists split their hands, with a centre
 cluster for the thumbs: navigation on top (arrows in an inverted T with
 Home/End/PgUp/PgDn/Ins/Del around them), then big Shift, Ctrl and Enter
-with Fn, Super and Alt. Each half keeps the classic row stagger and its own
-space bar under the letters, and the pinky-side modifiers stay where QWERTY
-hands expect them.
-
-The layout is wider than the classic one, so rows are taller than keys are
-wide; it then fills a landscape phone instead of leaving a band empty.
+with Fn, Super and Alt. Every modifier lives in the centre only; each half
+keeps the classic row stagger, square letter keys, and its own space bar
+under the letters.
 
     python3 scripts/gen-split-qwerty.py
 """
@@ -18,8 +15,9 @@ from pathlib import Path
 
 OUT = Path(__file__).resolve().parent.parent / "spec" / "layouts" / "split-qwerty.json"
 
-FROW_H = 1.1  # the F-key row is shorter, as on a laptop
-ROW_H = 1.55  # every other row
+FROW_H = 0.85  # the F-key row is shorter, as on a laptop
+ROW_H = 1.0  # number and letter rows: square keys
+SPACE_H = 1.25  # the space row is a little taller, for thumbs
 GAP = 0.25  # between a half and the centre cluster
 
 LEFT_W = 7.25  # widest left row (the Z row)
@@ -43,7 +41,7 @@ def row_y(r):
 
 
 def row_h(r):
-    return FROW_H if r == 0 else ROW_H
+    return FROW_H if r == 0 else SPACE_H if r == 5 else ROW_H
 
 
 def add(code, label, x, y, w, h, sub=None, style=None, fn=None, kid=None, layer=None):
@@ -88,8 +86,8 @@ row(0, 0, [("ESC", "Esc", 1, None, M)] + [(f"F{i}", f"F{i}", 1, None, "fkey") fo
 row(1, 0, [("GRAVE", "`", 1, "~")] + digits_l)
 row(2, 0, [("TAB", "Tab", 1.5, None, M)] + letters("QWERT"))
 row(3, 0, [("CAPSLOCK", "Caps", 1.75, None, M)] + letters("ASDFG"))
-row(4, 0, [("LEFTSHIFT", "Shift", 2.25, None, M)] + letters("ZXCVB"))
-row(5, 0, [("LEFTCTRL", "Ctrl", 1.25, None, M), ("LEFTMETA", "Super", 1, None, M), ("SPACE", "", 5, None, "space")])
+row(4, 2.25, letters("ZXCVB"))
+row(5, 2.25, [("SPACE", "", 5, None, "space")])
 
 # ---- right half (classic x positions, shifted) ----
 X = RIGHT_X
@@ -98,12 +96,9 @@ row(0, X + 6, [(f"F{i}", f"F{i}", 1, None, "fkey") for i in range(7, 13)]
 row(1, X + 6, digits_r + [("MINUS", "-", 1, "_"), ("EQUAL", "=", 1, "+"), ("BACKSPACE", "⌫", 2, None, M)])
 row(2, X + 6.5, letters("YUIOP") + [("LEFTBRACE", "[", 1, "{"), ("RIGHTBRACE", "]", 1, "}"),
                                     ("BACKSLASH", "\\", 1.5, "|")])
-row(3, X + 6.75, letters("HJKL") + [("SEMICOLON", ";", 1, ":"), ("APOSTROPHE", "'", 1, "\""),
-                                    ("ENTER", "Enter", 2.25, None, "accent")])
-row(4, X + 7.25, letters("NM") + [("COMMA", ",", 1, "<"), ("DOT", ".", 1, ">"), ("SLASH", "/", 1, "?"),
-                                  ("RIGHTSHIFT", "Shift", 2.75, None, M)])
-row(5, X + 7.25, [("SPACE", "", 5, None, "space"), ("RIGHTALT", "AltGr", 1.25, None, M),
-                  ("RIGHTCTRL", "Ctrl", 1.5, None, M)])
+row(3, X + 6.75, letters("HJKL") + [("SEMICOLON", ";", 1, ":"), ("APOSTROPHE", "'", 1, "\"")])
+row(4, X + 7.25, letters("NM") + [("COMMA", ",", 1, "<"), ("DOT", ".", 1, ">"), ("SLASH", "/", 1, "?")])
+row(5, X + 7.25, [("SPACE", "", 5, None, "space")])
 
 # ---- centre cluster ----
 C = CENTER_X
@@ -118,20 +113,21 @@ top = row_y(2)
 add("LEFTSHIFT", "Shift", C, top, 2, 2 * ROW_H, style=M, kid="center-shift")
 add(None, "Fn", C + 2, top, 1, 2 * ROW_H, style=M, layer="fn")
 add("ENTER", "Enter", C + 3, top, 2, 3 * ROW_H, style="accent", kid="center-enter")
-add("LEFTCTRL", "Ctrl", C, top + 2 * ROW_H, 2, 2 * ROW_H, style=M, kid="center-ctrl")
-add("LEFTMETA", "Super", C + 2, top + 2 * ROW_H, 1, 2 * ROW_H, style=M, kid="center-super")
-add("LEFTALT", "Alt", C + 3, top + 3 * ROW_H, 2, ROW_H, style=M, kid="center-alt")
+add("LEFTCTRL", "Ctrl", C, top + 2 * ROW_H, 2, ROW_H + SPACE_H, style=M, kid="center-ctrl")
+add("LEFTMETA", "Super", C + 2, top + 2 * ROW_H, 1, ROW_H + SPACE_H, style=M, kid="center-super")
+add("LEFTALT", "Alt", C + 3, top + 3 * ROW_H, 2, SPACE_H, style=M, kid="center-alt")
 
 width = max(k["x"] + k["w"] for k in keys)
-height = row_y(5) + ROW_H
+height = row_y(5) + SPACE_H
 layout = {
     "format": "omakey-layout",
     "version": 1,
     "id": "split-qwerty",
     "name": "Split QWERTY",
     "author": "Omakey",
-    "description": "QWERTY split by hand with a space bar under each half, and a centre thumb cluster: "
-                   "arrows, Home/End, PgUp/PgDn, Ins/Del, and big Enter, Shift and Ctrl with Fn, Super and Alt.",
+    "description": "QWERTY split by hand with square letters and a space bar under each half. Every "
+                   "modifier is in the centre thumb cluster: big Enter, Shift and Ctrl with Fn, Super "
+                   "and Alt, under arrows, Home/End, PgUp/PgDn and Ins/Del.",
     "width": round(width, 4),
     "height": round(height, 4),
     "keys": keys,
