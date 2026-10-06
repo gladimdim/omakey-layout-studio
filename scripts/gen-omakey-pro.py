@@ -6,7 +6,6 @@ A column-based (ortho) QWERTY split for two thumbs on a landscape phone:
 - The letter columns sit on the outer screen edges, where thumbs are: Q/A/Z
   and 1 on the far left, P/;// and 0 on the far right. Each half has its own
   space bar under its letters.
-- The right half has one inner column for the right-hand symbols - [ ' ] \\.
 - Everything else is in two mirrored 4-column islands that travel with
   their half. Each has a 2x2 Ctrl in its top outer corner and a 2x2
   Backspace next to it; below, Shift on the left mirrors Shift on the
@@ -15,9 +14,10 @@ A column-based (ortho) QWERTY split for two thumbs on a landscape phone:
   The left island also has Tab, `, =, Fn, Super and Alt; the right one has
   the arrows in vim order (left, down, up, right), Delete and AltGr.
 - A top row above the F row holds the rarely used keys: Caps, Home, End,
-  PgUp, PgDn on the left; F6, Esc, PrtSc, Ins and Menu, ScrLk, brightness
-  over the islands; media keys on the right. Small gaps set the top row and
-  the F row apart from the letters.
+  PgUp, PgDn on the left; F6, Esc, PrtSc, Ins and Menu, ScrLk, Pause, F7
+  over the islands; the right-hand symbols - [ ] \\ ' over the right
+  letters. Media and brightness are on Fn + F1-F10. Small gaps set the top
+  row and the F row apart from the letters.
 - It is a split layout (splitAt): on a screen wider than the layout the app
   pins each side to its edge and opens the gap between the islands.
 
@@ -44,8 +44,8 @@ LEFT_COLS = 5
 LEFT_ISLAND_X = LEFT_X + LEFT_COLS + GAP
 ISLAND_COLS = 4
 RIGHT_ISLAND_X = LEFT_ISLAND_X + ISLAND_COLS + SPLIT_GAP
-RIGHT_X = RIGHT_ISLAND_X + ISLAND_COLS + GAP  # the right half's inner symbol column
-RIGHT_LETTERS_X = RIGHT_X + 1
+RIGHT_X = RIGHT_ISLAND_X + ISLAND_COLS + GAP
+RIGHT_LETTERS_X = RIGHT_X
 
 MEDIA = {
     "F1": ("MUTE", "Mute"), "F2": ("VOLUMEDOWN", "Vol-"), "F3": ("VOLUMEUP", "Vol+"),
@@ -125,12 +125,8 @@ columns(LEFT_X, 3, list("ASDFG"))
 columns(LEFT_X, 4, list("ZXCVB"))
 add("SPACE", "", LEFT_X, 5, w=LEFT_COLS, style="space", kid="space-left")
 
-# ---- right half: letters on the right edge, symbols in the inner column ----
-add("F7", "F7", RIGHT_X, 0, style="fkey")
+# ---- right half: letters on the right edge ----
 columns(RIGHT_LETTERS_X, 0, [(f"F{i}", f"F{i}") for i in range(8, 13)], style="fkey")
-for r, (code, label) in enumerate([("MINUS", "-"), ("LEFTBRACE", "["), ("APOSTROPHE", "'"),
-                                   ("RIGHTBRACE", "]"), ("BACKSLASH", "\\")], start=1):
-    add(code, label, RIGHT_X, r)
 columns(RIGHT_LETTERS_X, 1, list("67890"))
 columns(RIGHT_LETTERS_X, 2, list("YUIOP"))
 columns(RIGHT_LETTERS_X, 3, list("HJKL") + [("SEMICOLON", ";")])
@@ -140,8 +136,8 @@ add("SPACE", "", RIGHT_LETTERS_X, 5, w=5, style="space", kid="space-right")
 # ---- top row: rarely used keys ----
 columns(LEFT_X, TOP, [("CAPSLOCK", "Caps"), ("HOME", "Home"), ("END", "End"), ("PAGEUP", "PgUp"),
                       ("PAGEDOWN", "PgDn")], style=M)
-columns(RIGHT_X, TOP, [("MUTE", "Mute"), ("VOLUMEDOWN", "Vol-"), ("VOLUMEUP", "Vol+"), ("PREVIOUSSONG", "Prev"),
-                       ("PLAYPAUSE", "Play"), ("NEXTSONG", "Next")], style=M)
+columns(RIGHT_X, TOP, [("MINUS", "-"), ("LEFTBRACE", "["), ("RIGHTBRACE", "]"), ("BACKSLASH", "\\"),
+                       ("APOSTROPHE", "'")])
 
 # ---- left island: columns L .. L+3, outer to inner ----
 L = LEFT_ISLAND_X
@@ -159,8 +155,8 @@ add("LEFTALT", "Alt", L + 1, 5, style=M, kid="center-alt")
 
 # ---- right island: columns R .. R+3, inner to outer ----
 R = RIGHT_ISLAND_X
-columns(R, TOP, [("COMPOSE", "Menu"), ("SCROLLLOCK", "ScrLk"), ("BRIGHTNESSDOWN", "Bri-"),
-                 ("BRIGHTNESSUP", "Bri+")], style=M)
+columns(R, TOP, [("COMPOSE", "Menu"), ("SCROLLLOCK", "ScrLk"), ("PAUSE", "Pause")], style=M)
+add("F7", "F7", R + 3, TOP, style="fkey")
 add("BACKSPACE", "⌫", R, 0, w=2, rows=2, style=M, kid="center-backspace-right")
 add("RIGHTCTRL", "Ctrl", R + 2, 0, w=2, rows=2, style=M, kid="center-rctrl")
 # Arrows in vim order: h j k l.
