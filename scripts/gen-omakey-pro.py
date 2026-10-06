@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate spec/layouts/split-qwerty.json.
+"""Generate spec/layouts/omakey-pro.json, the Omakey Pro layout.
 
 A column-based (ortho) QWERTY split for two thumbs on a landscape phone:
 
@@ -8,25 +8,32 @@ A column-based (ortho) QWERTY split for two thumbs on a landscape phone:
   space bar under its letters.
 - The right half has one inner column for the right-hand symbols - [ ' ] \\.
 - Everything else is in two mirrored 4-column islands that travel with
-  their half. Each has a 2x2 Ctrl in its top outer corner; below, Shift
-  (left) mirrors Backspace (right). Enter is one U-shaped key: a 2x2 block
-  on each island joined by a bar along the bottom that bridges the split
-  (and stretches with it). The left island also has F6, PrtSc (Menu on
-  Fn), Esc, `, Tab, Caps, =, Fn, Super and Alt (AltGr on Fn); the right one
-  has the arrows in an inverted T with Home/End, PgUp/PgDn, Ins and Del.
+  their half. Each has a 2x2 Ctrl in its top outer corner and a 2x2
+  Backspace next to it; below, Shift on the left mirrors Shift on the
+  right. Enter is one U-shaped key: a 2x2 block on each island joined by a
+  bar along the bottom that bridges the split (and stretches with it).
+  The left island also has Tab, `, =, Fn, Super and Alt; the right one has
+  the arrows in vim order (left, down, up, right), Delete and AltGr.
+- A top row above the F row holds the rarely used keys: Caps, Home, End,
+  PgUp, PgDn on the left; F6, Esc, PrtSc, Ins and Menu, ScrLk, brightness
+  over the islands; media keys on the right. Small gaps set the top row and
+  the F row apart from the letters.
 - It is a split layout (splitAt): on a screen wider than the layout the app
   pins each side to its edge and opens the gap between the islands.
 
 Keys are square; the F row is shorter and the space row a little taller.
 
-    python3 scripts/gen-split-qwerty.py
+    python3 scripts/gen-omakey-pro.py
 """
 import json
 from pathlib import Path
 
-OUT = Path(__file__).resolve().parent.parent / "spec" / "layouts" / "split-qwerty.json"
+OUT = Path(__file__).resolve().parent.parent / "spec" / "layouts" / "omakey-pro.json"
 
+TOP_H = 0.85  # the top row of rarely used keys
+TOP_GAP = 0.15  # between the top row and the F row
 FROW_H = 0.85  # the F-key row is shorter, as on a laptop
+F_GAP = 0.2  # sets the F row apart from the number and letter block
 ROW_H = 1.0  # number and letter rows: square keys
 SPACE_H = 1.25  # the space row is a little taller, for thumbs
 GAP = 0.2  # between a half's letters and its island
@@ -54,12 +61,18 @@ keys = []
 ids = set()
 
 
+TOP = -1  # the row above the F row
+
+
 def row_y(r):
-    return 0.0 if r == 0 else FROW_H + (r - 1) * ROW_H
+    if r == TOP:
+        return 0.0
+    f = TOP_H + TOP_GAP
+    return f if r == 0 else f + FROW_H + F_GAP + (r - 1) * ROW_H
 
 
 def row_h(r):
-    return FROW_H if r == 0 else SPACE_H if r == 5 else ROW_H
+    return TOP_H if r == TOP else FROW_H if r == 0 else SPACE_H if r == 5 else ROW_H
 
 
 def span_h(r0, r1):
@@ -124,28 +137,37 @@ columns(RIGHT_LETTERS_X, 3, list("HJKL") + [("SEMICOLON", ";")])
 columns(RIGHT_LETTERS_X, 4, list("NM") + [("COMMA", ","), ("DOT", "."), ("SLASH", "/")])
 add("SPACE", "", RIGHT_LETTERS_X, 5, w=5, style="space", kid="space-right")
 
+# ---- top row: rarely used keys ----
+columns(LEFT_X, TOP, [("CAPSLOCK", "Caps"), ("HOME", "Home"), ("END", "End"), ("PAGEUP", "PgUp"),
+                      ("PAGEDOWN", "PgDn")], style=M)
+columns(RIGHT_X, TOP, [("MUTE", "Mute"), ("VOLUMEDOWN", "Vol-"), ("VOLUMEUP", "Vol+"), ("PREVIOUSSONG", "Prev"),
+                       ("PLAYPAUSE", "Play"), ("NEXTSONG", "Next")], style=M)
+
 # ---- left island: columns L .. L+3, outer to inner ----
 L = LEFT_ISLAND_X
+add("F6", "F6", L, TOP, style="fkey")
+columns(L + 1, TOP, [("ESC", "Esc"), ("SYSRQ", "PrtSc"), ("INSERT", "Ins")], style=M)
 add("LEFTCTRL", "Ctrl", L, 0, w=2, rows=2, style=M, kid="center-ctrl")
-add("F6", "F6", L + 2, 0, style="fkey")
-add("SYSRQ", "PrtSc", L + 3, 0, style=M, fn=("COMPOSE", "Menu"))
-add("ESC", "Esc", L + 2, 1, style=M)
-add("GRAVE", "`", L + 3, 1)
-columns(L, 2, [("TAB", "Tab"), ("CAPSLOCK", "Caps")], style=M)
+add("BACKSPACE", "⌫", L + 2, 0, w=2, rows=2, style=M, kid="center-backspace")
+add("TAB", "Tab", L, 2, style=M)
+add("GRAVE", "`", L + 1, 2)
 add("EQUAL", "=", L + 2, 2)
 add(None, "Fn", L + 3, 2, style=M, layer="fn")
 add("LEFTSHIFT", "Shift", L, 3, w=2, rows=2, style=M, kid="center-shift")
 add("LEFTMETA", "Super", L, 5, style=M, kid="center-super")
-add("LEFTALT", "Alt", L + 1, 5, style=M, kid="center-alt", fn=("RIGHTALT", "AltGr"))
+add("LEFTALT", "Alt", L + 1, 5, style=M, kid="center-alt")
 
 # ---- right island: columns R .. R+3, inner to outer ----
 R = RIGHT_ISLAND_X
-columns(R, 0, [("HOME", "Home"), ("END", "End")], style=M)
+columns(R, TOP, [("COMPOSE", "Menu"), ("SCROLLLOCK", "ScrLk"), ("BRIGHTNESSDOWN", "Bri-"),
+                 ("BRIGHTNESSUP", "Bri+")], style=M)
+add("BACKSPACE", "⌫", R, 0, w=2, rows=2, style=M, kid="center-backspace-right")
 add("RIGHTCTRL", "Ctrl", R + 2, 0, w=2, rows=2, style=M, kid="center-rctrl")
-columns(R, 1, [("PAGEUP", "PgUp"), ("UP", "↑")], style=M)
-columns(R, 2, [("LEFT", "←"), ("DOWN", "↓"), ("RIGHT", "→"), ("PAGEDOWN", "PgDn")], style=M)
-add("BACKSPACE", "⌫", R + 2, 3, w=2, rows=2, style=M, kid="center-backspace")
-columns(R + 2, 5, [("INSERT", "Ins"), ("DELETE", "Del")], style=M)
+# Arrows in vim order: h j k l.
+columns(R, 2, [("LEFT", "←"), ("DOWN", "↓"), ("UP", "↑"), ("RIGHT", "→")], style=M)
+add("RIGHTSHIFT", "Shift", R + 2, 3, w=2, rows=2, style=M, kid="center-rshift")
+add("DELETE", "Del", R + 2, 5, style=M)
+add("RIGHTALT", "AltGr", R + 3, 5, style=M, kid="center-altgr")
 
 # ---- Enter: |_| across both islands ----
 # The label sits on the bar, which crosses the split and stretches with it.
@@ -157,12 +179,12 @@ height = row_y(5) + SPACE_H
 layout = {
     "format": "omakey-layout",
     "version": 1,
-    "id": "split-qwerty",
-    "name": "Split QWERTY",
+    "id": "omakey-pro",
+    "name": "Omakey Pro",
     "author": "Omakey",
     "description": "Column-based QWERTY split for two thumbs: letters on the outer edges with a space bar "
-                   "under each half, and a mirrored island beside each: big Ctrl on both, Shift and Tab/Caps "
-                   "left, arrows and Backspace right, and a U-shaped Enter bridging the split.",
+                   "under each half, mirrored islands with big Ctrl, Backspace and Shift on both sides, a "
+                   "U-shaped Enter bridging the split, and a top row for rarely used keys.",
     "width": round(width, 4),
     "height": round(height, 4),
     "splitAt": round(RIGHT_ISLAND_X, 4),
