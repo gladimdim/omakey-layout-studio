@@ -41,6 +41,22 @@
         "code": { "$ref": "#/$defs/keyName" },
         "layer": { "$ref": "#/$defs/layerName" },
         "style": { "enum": ["normal", "mod", "fkey", "accent", "space"] },
+        "parts": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 8,
+          "items": {
+            "type": "object",
+            "required": ["x", "y", "w", "h"],
+            "additionalProperties": false,
+            "properties": {
+              "x": { "type": "number", "minimum": 0 },
+              "y": { "type": "number", "minimum": 0 },
+              "w": { "type": "number", "minimum": 0.25, "maximum": 16 },
+              "h": { "type": "number", "minimum": 0.25, "maximum": 16 }
+            }
+          }
+        },
         "layers": {
           "type": "object",
           "propertyNames": { "$ref": "#/$defs/layerName" },

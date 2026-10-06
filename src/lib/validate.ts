@@ -18,8 +18,9 @@ const LAYOUT_FIELDS = new Set([
   "format", "version", "id", "name", "author", "description", "width", "height", "splitAt", "keys",
 ]);
 const KEY_FIELDS = new Set([
-  "id", "x", "y", "w", "h", "label", "sub", "code", "layer", "style", "layers",
+  "id", "x", "y", "w", "h", "label", "sub", "code", "layer", "style", "layers", "parts",
 ]);
+const RECT_FIELDS = new Set(["x", "y", "w", "h"]);
 const OVERRIDE_FIELDS = new Set(["code", "label"]);
 const LAYOUT_ID = /^[a-z0-9][a-z0-9-]{0,63}$/;
 const KEY_NAME = /^KEY_[A-Z0-9_]+$/;
@@ -116,6 +117,23 @@ export function validateLayout(input: unknown): Issue[] {
       }
     }
 
+    const parts: { x: number; y: number; w: number; h: number }[] = [];
+    if (k.parts !== undefined) {
+      if (!Array.isArray(k.parts) || k.parts.length < 1 || k.parts.length > LIMITS.maxParts) {
+        e(`"parts" must be a list of 1–${LIMITS.maxParts} rectangles.`);
+      } else {
+        k.parts.forEach((p, n) => {
+          if (!isObject(p)) return e(`part ${n + 1} must be an object with x, y, w and h.`);
+          for (const f of Object.keys(p)) if (!RECT_FIELDS.has(f)) e(`part ${n + 1} has unknown field "${f}".`);
+          const ok = isNum(p.x) && p.x >= 0 && isNum(p.y) && p.y >= 0 &&
+            isNum(p.w) && p.w >= LIMITS.minKeySize && p.w <= LIMITS.maxKeySize &&
+            isNum(p.h) && p.h >= LIMITS.minKeySize && p.h <= LIMITS.maxKeySize;
+          if (!ok) e(`part ${n + 1} needs x, y ≥ 0 and w, h between ${LIMITS.minKeySize} and ${LIMITS.maxKeySize}.`);
+          else parts.push({ x: p.x as number, y: p.y as number, w: p.w as number, h: p.h as number });
+        });
+      }
+    }
+
     if (typeof k.label !== "string") e('"label" is required (it may be empty).');
     else if (k.label.length > LIMITS.maxLabelLength) e(`"label" is longer than ${LIMITS.maxLabelLength} characters.`);
     if (k.sub !== undefined && (typeof k.sub !== "string" || k.sub.length > LIMITS.maxLabelLength))
@@ -156,20 +174,24 @@ export function validateLayout(input: unknown): Issue[] {
     }
 
     if (geomOk) {
-      const r = { i, id: id ?? `#${i + 1}`, x: k.x as number, y: k.y as number, w: k.w as number, h: k.h as number };
-      rects.push(r);
-      if (widthOk && heightOk && (r.x + r.w > (l.width as number) + EPS || r.y + r.h > (l.height as number) + EPS))
-        warn(`${name} sticks out of the ${l.width}×${l.height} layout area.`, i, id);
-      if (splitOk && isNum(split) && r.x < split - EPS && r.x + r.w > split + EPS)
-        warn(`${name} straddles the split at ${split}; it stays with the left side and the gap opens through it.`, i, id);
+      const main = { x: k.x as number, y: k.y as number, w: k.w as number, h: k.h as number };
+      let outside = false;
+      for (const r of [main, ...parts]) {
+        rects.push({ i, id: id ?? `#${i + 1}`, ...r });
+        if (r.x + r.w > (l.width as number) + EPS || r.y + r.h > (l.height as number) + EPS) outside = true;
+      }
+      if (widthOk && heightOk && outside) warn(`${name} sticks out of the ${l.width}×${l.height} layout area.`, i, id);
     }
   });
 
   // Overlaps: O(n²) is fine for 256 keys.
+  const reported = new Set<string>();
   for (let a = 0; a < rects.length; a++) {
     for (let b = a + 1; b < rects.length; b++) {
       const p = rects[a], q = rects[b];
-      if (p.x < q.x + q.w - EPS && q.x < p.x + p.w - EPS && p.y < q.y + q.h - EPS && q.y < p.y + p.h - EPS)
+      if (p.i === q.i) continue; // a key's own parts may touch or overlap
+      if (p.x < q.x + q.w - EPS && q.x < p.x + p.w - EPS && p.y < q.y + q.h - EPS && q.y < p.y + p.h - EPS &&
+          !reported.has(`${p.i}:${q.i}`) && reported.add(`${p.i}:${q.i}`))
         warn(`Key "${q.id}" overlaps key "${p.id}"; a touch goes to "${q.id}".`, q.i, q.id);
     }
   }

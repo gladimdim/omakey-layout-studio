@@ -83,6 +83,15 @@ export function Inspector({ layout, selected, onApply, onDuplicate, onDelete, on
   return (
     <div className="inspector">
       <h3>Key <span className="muted">{k.id}</span></h3>
+      {k.parts?.length ? (
+        <p className="hint">
+          Shaped key: {k.parts.length} extra {k.parts.length === 1 ? "part" : "parts"} besides the rectangle below
+          (edit them in the JSON).{" "}
+          <button type="button" className="link" onClick={() => patch((x) => { const { parts: _, ...rest } = x; return rest; }, "parts")}>
+            Make it a plain rectangle
+          </button>
+        </p>
+      ) : null}
 
       <div className="grid2">
         <TextField label="Label" value={k.label ?? ""} maxLength={LIMITS.maxLabelLength} onChange={(label) => patch({ label }, "label")} />

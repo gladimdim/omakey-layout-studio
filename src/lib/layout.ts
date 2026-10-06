@@ -1,6 +1,6 @@
 import classic from "../../spec/layouts/classic-qwerty.json";
 import { defaultLabel } from "./keycodes";
-import type { Layout, LayoutKey } from "./types";
+import type { KeyRect, Layout, LayoutKey } from "./types";
 
 export const CLASSIC_QWERTY = classic as Layout;
 
@@ -42,11 +42,37 @@ export function blankLayout(): Layout {
   };
 }
 
+/** A key's rectangles: its main one first, then its extra parts. */
+export function keyRects(k: LayoutKey): KeyRect[] {
+  const main = { x: k.x, y: k.y, w: k.w, h: k.h };
+  return k.parts?.length ? [main, ...k.parts] : [main];
+}
+
+/** The key moved by (dx, dy), extra parts included. */
+export function moveKey(k: LayoutKey, dx: number, dy: number): LayoutKey {
+  const out = { ...k, x: round(k.x + dx), y: round(k.y + dy) };
+  if (k.parts) out.parts = k.parts.map((p) => ({ ...p, x: round(p.x + dx), y: round(p.y + dy) }));
+  return out;
+}
+
+/**
+ * A rectangle as drawn with a split layout's gap widened by `stretch`:
+ * rectangles right of the split move right, and ones crossing it get wider.
+ */
+export function stretchRect(r: KeyRect, splitAt: number | undefined, stretch: number): KeyRect {
+  if (splitAt === undefined || stretch <= 0) return r;
+  const left = r.x >= splitAt ? r.x + stretch : r.x;
+  const right = r.x + r.w > splitAt ? r.x + r.w + stretch : r.x + r.w;
+  return { x: left, y: r.y, w: right - left, h: r.h };
+}
+
 export function bounds(keys: LayoutKey[]): { width: number; height: number } {
   let width = 0, height = 0;
   for (const k of keys) {
-    width = Math.max(width, k.x + k.w);
-    height = Math.max(height, k.y + k.h);
+    for (const r of keyRects(k)) {
+      width = Math.max(width, r.x + r.w);
+      height = Math.max(height, r.y + r.h);
+    }
   }
   return { width: round(width) || 1, height: round(height) || 1 };
 }
@@ -101,6 +127,7 @@ export function cleanKey(k: LayoutKey): LayoutKey {
   if (k.layer !== undefined) out.layer = k.layer;
   else if (k.code !== undefined) out.code = k.code;
   if (k.style && k.style !== "normal") out.style = k.style;
+  if (k.parts?.length) out.parts = k.parts.map((p) => ({ x: round(p.x), y: round(p.y), w: round(p.w), h: round(p.h) }));
   if (k.layers) {
     const layers: Record<string, { code?: string; label?: string }> = {};
     for (const [name, ov] of Object.entries(k.layers)) {

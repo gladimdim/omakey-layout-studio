@@ -9,6 +9,14 @@ export interface LayerOverride {
   label?: string;
 }
 
+/** A rectangle in layout units. */
+export interface KeyRect {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
 export interface LayoutKey {
   id: string;
   x: number;
@@ -21,6 +29,8 @@ export interface LayoutKey {
   layer?: string;
   style?: KeyStyle;
   layers?: Record<string, LayerOverride>;
+  /** Extra rectangles of the same key, for shaped keys such as a U-shaped Enter. */
+  parts?: KeyRect[];
 }
 
 export interface Layout {
@@ -53,4 +63,5 @@ export const LIMITS = {
   maxKeySize: 16,
   maxWidth: 64,
   maxHeight: 32,
+  maxParts: 8,
 } as const;

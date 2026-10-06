@@ -7,7 +7,7 @@ import { LayoutPanel } from "./components/LayoutPanel";
 import { SharePanel } from "./components/SharePanel";
 import { historyReducer, initHistory, type History, type HistoryAction } from "./lib/history";
 import {
-  blankLayout, bounds, cleanLayout, CLASSIC_QWERTY, cloneLayout, STOCK_LAYOUTS, fitToKeys, layerNames, newKey, round, snap, STEP, uniqueId,
+  blankLayout, bounds, cleanLayout, CLASSIC_QWERTY, cloneLayout, moveKey, STOCK_LAYOUTS, fitToKeys, layerNames, newKey, round, snap, STEP, uniqueId,
 } from "./lib/layout";
 import { decodePayload, extractPayload, HASH_PREFIX } from "./lib/share";
 import { loadPrefs, loadSaved, save, savePrefs } from "./lib/storage";
@@ -145,7 +145,7 @@ export function App() {
       const copies = picked.map((k) => {
         const id = uniqueId(k.id, taken);
         taken.add(id);
-        return { ...structuredClone(k), id, x: round(k.x + b.width - minX) };
+        return { ...moveKey(structuredClone(k), b.width - minX, 0), id };
       });
       return { ...l, keys: [...l.keys, ...copies] };
     });
@@ -165,7 +165,7 @@ export function App() {
       const ddx = Math.max(dx, -Math.min(...picked.map((k) => k.x)));
       const ddy = Math.max(dy, -Math.min(...picked.map((k) => k.y)));
       const q = (v: number) => (prefs.snapOn && Math.abs(dx + dy) >= STEP ? snap(v) : round(v));
-      return { ...l, keys: l.keys.map((k, i) => (selected.includes(i) ? { ...k, x: q(k.x + ddx), y: q(k.y + ddy) } : k)) };
+      return { ...l, keys: l.keys.map((k, i) => (selected.includes(i) ? moveKey(k, q(k.x + ddx) - k.x, q(k.y + ddy) - k.y) : k)) };
     }, merge);
   }, [apply, selected, prefs.snapOn]);
 

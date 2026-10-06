@@ -7,10 +7,13 @@ A column-based (ortho) QWERTY split for two thumbs on a landscape phone:
   and 1 on the far left, P/;// and 0 on the far right. Each half has its own
   space bar under its letters.
 - The right half has one inner column for the right-hand symbols - [ ' ] \\.
-- Everything else is in two islands that travel with their half: the left
-  one has F6, Esc, PrtSc, ` and =, Tab, Caps, PgUp/PgDn, Fn, Super and the
-  big Shift and Ctrl; the right one has Ins/Del/Menu, the arrows with
-  Home/End, the big Enter, Alt (AltGr on Fn) and Backspace.
+- Everything else is in two mirrored 4-column islands that travel with
+  their half. Each has a 2x2 Ctrl in its top outer corner; below, Shift
+  (left) mirrors Backspace (right). Enter is one U-shaped key: a 2x2 block
+  on each island joined by a bar along the bottom that bridges the split
+  (and stretches with it). The left island also has F6, PrtSc (Menu on
+  Fn), Esc, `, Tab, Caps, =, Fn, Super and Alt (AltGr on Fn); the right one
+  has the arrows in an inverted T with Home/End, PgUp/PgDn, Ins and Del.
 - It is a split layout (splitAt): on a screen wider than the layout the app
   pins each side to its edge and opens the gap between the islands.
 
@@ -32,7 +35,7 @@ SPLIT_GAP = 1.5  # between the islands; the app widens it further on wider scree
 LEFT_X = 0.0
 LEFT_COLS = 5
 LEFT_ISLAND_X = LEFT_X + LEFT_COLS + GAP
-ISLAND_COLS = 3
+ISLAND_COLS = 4
 RIGHT_ISLAND_X = LEFT_ISLAND_X + ISLAND_COLS + SPLIT_GAP
 RIGHT_X = RIGHT_ISLAND_X + ISLAND_COLS + GAP  # the right half's inner symbol column
 RIGHT_LETTERS_X = RIGHT_X + 1
@@ -64,7 +67,11 @@ def span_h(r0, r1):
     return row_y(r1) + row_h(r1) - row_y(r0)
 
 
-def add(code, label, x, r, w=1, rows=1, style=None, kid=None, layer=None, fn=None):
+def rect(x, r, w=1, rows=1):
+    return {"x": round(x, 4), "y": round(row_y(r), 4), "w": w, "h": round(span_h(r, r + rows - 1), 4)}
+
+
+def add(code, label, x, r, w=1, rows=1, style=None, kid=None, layer=None, fn=None, parts=None):
     kid = kid or (layer or code).lower()
     base, n = kid, 2
     while kid in ids:
@@ -84,6 +91,8 @@ def add(code, label, x, r, w=1, rows=1, style=None, kid=None, layer=None, fn=Non
             k["layers"] = {"fn": {"code": "KEY_" + fn[0], "label": fn[1]}}
     if style:
         k["style"] = style
+    if parts:
+        k["parts"] = parts
     keys.append(k)
 
 
@@ -115,27 +124,33 @@ columns(RIGHT_LETTERS_X, 3, list("HJKL") + [("SEMICOLON", ";")])
 columns(RIGHT_LETTERS_X, 4, list("NM") + [("COMMA", ","), ("DOT", "."), ("SLASH", "/")])
 add("SPACE", "", RIGHT_LETTERS_X, 5, w=5, style="space", kid="space-right")
 
-# ---- left island ----
+# ---- left island: columns L .. L+3, outer to inner ----
 L = LEFT_ISLAND_X
-add("F6", "F6", L, 0, style="fkey")
-columns(L + 1, 0, [("ESC", "Esc"), ("SYSRQ", "PrtSc")], style=M)
-columns(L, 1, [("GRAVE", "`")])
-columns(L + 1, 1, [("TAB", "Tab"), ("PAGEUP", "PgUp")], style=M)
-columns(L, 2, [("EQUAL", "=")])
-columns(L + 1, 2, [("CAPSLOCK", "Caps"), ("PAGEDOWN", "PgDn")], style=M)
-add(None, "Fn", L, 3, style=M, layer="fn")
-add("LEFTSHIFT", "Shift", L + 1, 3, w=2, rows=2, style=M, kid="center-shift")
-add("LEFTMETA", "Super", L, 4, style=M, kid="center-super")
-add("LEFTCTRL", "Ctrl", L, 5, w=3, style=M, kid="center-ctrl")
+add("LEFTCTRL", "Ctrl", L, 0, w=2, rows=2, style=M, kid="center-ctrl")
+add("F6", "F6", L + 2, 0, style="fkey")
+add("SYSRQ", "PrtSc", L + 3, 0, style=M, fn=("COMPOSE", "Menu"))
+add("ESC", "Esc", L + 2, 1, style=M)
+add("GRAVE", "`", L + 3, 1)
+columns(L, 2, [("TAB", "Tab"), ("CAPSLOCK", "Caps")], style=M)
+add("EQUAL", "=", L + 2, 2)
+add(None, "Fn", L + 3, 2, style=M, layer="fn")
+add("LEFTSHIFT", "Shift", L, 3, w=2, rows=2, style=M, kid="center-shift")
+add("LEFTMETA", "Super", L, 5, style=M, kid="center-super")
+add("LEFTALT", "Alt", L + 1, 5, style=M, kid="center-alt", fn=("RIGHTALT", "AltGr"))
 
-# ---- right island ----
+# ---- right island: columns R .. R+3, inner to outer ----
 R = RIGHT_ISLAND_X
-columns(R, 0, [("INSERT", "Ins"), ("DELETE", "Del"), ("COMPOSE", "Menu")], style=M)
-columns(R, 1, [("HOME", "Home"), ("UP", "↑"), ("END", "End")], style=M)
-columns(R, 2, [("LEFT", "←"), ("DOWN", "↓"), ("RIGHT", "→")], style=M)
-add("ENTER", "Enter", R, 3, w=3, rows=2, style="accent", kid="center-enter")
-add("LEFTALT", "Alt", R, 5, style=M, kid="center-alt", fn=("RIGHTALT", "AltGr"))
-add("BACKSPACE", "⌫", R + 1, 5, w=2, style=M, kid="center-backspace")
+columns(R, 0, [("HOME", "Home"), ("END", "End")], style=M)
+add("RIGHTCTRL", "Ctrl", R + 2, 0, w=2, rows=2, style=M, kid="center-rctrl")
+columns(R, 1, [("PAGEUP", "PgUp"), ("UP", "↑")], style=M)
+columns(R, 2, [("LEFT", "←"), ("DOWN", "↓"), ("RIGHT", "→"), ("PAGEDOWN", "PgDn")], style=M)
+add("BACKSPACE", "⌫", R + 2, 3, w=2, rows=2, style=M, kid="center-backspace")
+columns(R + 2, 5, [("INSERT", "Ins"), ("DELETE", "Del")], style=M)
+
+# ---- Enter: |_| across both islands ----
+# The label sits on the bar, which crosses the split and stretches with it.
+add("ENTER", "Enter", L + 2, 5, w=round(R + 2 - (L + 2), 4), style="accent", kid="center-enter",
+    parts=[rect(L + 2, 3, 2, 2), rect(R, 3, 2, 2)])
 
 width = max(k["x"] + k["w"] for k in keys)
 height = row_y(5) + SPACE_H
@@ -146,8 +161,8 @@ layout = {
     "name": "Split QWERTY",
     "author": "Omakey",
     "description": "Column-based QWERTY split for two thumbs: letters on the outer edges with a space bar "
-                   "under each half, and an island beside each half: Tab, Caps, big Shift and Ctrl on the "
-                   "left; arrows, big Enter and Backspace on the right. The halves move to the screen edges.",
+                   "under each half, and a mirrored island beside each: big Ctrl on both, Shift and Tab/Caps "
+                   "left, arrows and Backspace right, and a U-shaped Enter bridging the split.",
     "width": round(width, 4),
     "height": round(height, 4),
     "splitAt": round(RIGHT_ISLAND_X, 4),

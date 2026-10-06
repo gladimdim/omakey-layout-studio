@@ -1,5 +1,5 @@
 import { forwardRef, useRef, useState } from "react";
-import { round, snap, STEP } from "../lib/layout";
+import { round, snap, STEP, moveKey, keyRects } from "../lib/layout";
 import type { Layout, LayoutKey } from "../lib/types";
 import { Keycap } from "./Keycap";
 
@@ -99,7 +99,7 @@ export const Canvas = forwardRef<HTMLDivElement, Props>(function Canvas(
         ...l,
         keys: l.keys.map((k, i) => {
           const o = d.orig.get(i);
-          return o ? { ...k, x: round(o.x + ddx), y: round(o.y + ddy) } : k;
+          return o ? moveKey(o, ddx, ddy) : k;
         }),
       }), d.merge);
     } else if (d.mode === "resize") {
@@ -114,7 +114,7 @@ export const Canvas = forwardRef<HTMLDivElement, Props>(function Canvas(
       setMarquee(r);
       const ux = (r.x - offset) / zoom, uy = (r.y - offset) / zoom, uw = r.w / zoom, uh = r.h / zoom;
       const hit = layout.keys
-        .map((k, i) => (k.x < ux + uw && ux < k.x + k.w && k.y < uy + uh && uy < k.y + k.h ? i : -1))
+        .map((k, i) => (keyRects(k).some((r) => r.x < ux + uw && ux < r.x + r.w && r.y < uy + uh && uy < r.y + r.h) ? i : -1))
         .filter((i) => i >= 0);
       onSelect([...new Set([...d.base, ...hit])]);
     }

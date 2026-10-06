@@ -46,8 +46,9 @@ left side. When the screen is wider than the layout, the app puts the left
 side against the left edge and the right side against the right edge, and
 the extra width goes into the split, so each half stays under its thumb.
 Keys keep their size. On a narrower screen the layout is drawn as usual.
-Keys should not straddle `splitAt`. The space between the two sides
-receives no touches.
+A rectangle that crosses `splitAt` stretches with the gap: its left edge
+stays and its right edge moves with the right side, so a key can bridge the
+two halves. The rest of the gap receives no touches.
 
 ## Keys
 
@@ -62,6 +63,12 @@ receives no touches.
 | `layer`  | string | one of   | momentary layer key: held, it switches keys to that layer |
 | `layers` | object | no       | per-layer override: `{ "<layer>": { "code": "KEY_…", "label": "…" } }` |
 | `style`  | string | no       | `normal` (default), `mod`, `fkey`, `accent`, `space` |
+| `parts`  | array  | no       | extra rectangles of the same key: `[{ "x": 7, "y": 5, "w": 6, "h": 1 }]` |
+
+A key's `x`/`y`/`w`/`h` is its main rectangle, where the label goes. `parts`
+(1–8 rectangles, same units) make shaped keys, such as an L-shaped ISO
+Enter or a U-shaped Enter spanning both halves; a touch on any part presses
+the key, and the app draws the parts as one key.
 
 A key has exactly one of `code` or `layer`. Layer names are free-form
 lowercase words; `fn` is the conventional one. While a layer key is held,

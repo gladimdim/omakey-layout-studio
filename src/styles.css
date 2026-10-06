@@ -144,6 +144,12 @@ textarea { resize: vertical; }
 .keycap.style-accent { background: linear-gradient(180deg, #4a68b5, var(--cap-accent)); color: #fff; }
 .keycap.style-space { background: linear-gradient(180deg, #30354d, #272b3f); }
 .keycap.layer-key { color: var(--warn); }
+/* Shaped keys are drawn from several rectangles: flat fill and no edges, so the parts read as one key. */
+.keycap.shaped { background: var(--cap); border-color: transparent; }
+.keycap.shaped.style-mod { background: var(--cap-mod); }
+.keycap.shaped.style-fkey { background: var(--cap-fkey); }
+.keycap.shaped.style-accent { background: var(--cap-accent); }
+.keycap.shaped.style-space { background: #272b3f; }
 .keycap.held { background: var(--warn); color: var(--accent-fg); }
 .keycap.overridden { box-shadow: inset 0 -2px 0 var(--warn); color: var(--warn); }
 .keycap.disabled { opacity: 0.35; }

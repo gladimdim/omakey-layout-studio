@@ -14,14 +14,25 @@ describe("validateLayout", () => {
     expect(validateLayout(layout)).toEqual([]);
   });
 
-  it("checks splitAt: inside the layout, and warns when a key straddles it", () => {
+  it("checks splitAt is inside the layout", () => {
     const l = cloneLayout(CLASSIC_QWERTY);
     expect(validateLayout({ ...l, splitAt: 0 }).some((i) => i.severity === "error")).toBe(true);
     expect(validateLayout({ ...l, splitAt: 99 }).some((i) => i.severity === "error")).toBe(true);
-    // x=7.5 cuts through the space bar.
-    const issues = validateLayout({ ...l, splitAt: 7.5 });
+    // A key crossing the split is fine: it stretches with the gap.
+    expect(validateLayout({ ...l, splitAt: 7.5 })).toEqual([]);
+  });
+
+  it("validates shaped keys' parts and checks their overlaps with other keys", () => {
+    const l = cloneLayout(CLASSIC_QWERTY);
+    const enter = l.keys.findIndex((k) => k.id === "enter");
+    const withParts = (parts: unknown) => ({ ...l, keys: l.keys.map((k, i) => (i === enter ? { ...k, parts } : k)) });
+    // A part right above Enter, where the backslash key is, overlaps it.
+    const issues = validateLayout(withParts([{ x: 13.5, y: 2, w: 1.5, h: 1 }]));
     expect(hasErrors(issues)).toBe(false);
-    expect(issues.some((i) => i.severity === "warning" && i.message.includes("straddles"))).toBe(true);
+    expect(issues.some((i) => i.message.includes("overlaps"))).toBe(true);
+    expect(hasErrors(validateLayout(withParts([{ x: 1, y: 1 }])))).toBe(true);
+    expect(hasErrors(validateLayout(withParts([])))).toBe(true);
+    expect(hasErrors(validateLayout(withParts([{ x: 0, y: 6, w: 1, h: 1, r: 45 }])))).toBe(true);
   });
 
   it("keeps splitAt through cleanLayout and drops it when out of range", () => {
@@ -107,5 +118,17 @@ describe("validateLayout", () => {
     expect(hasErrors(validateLayout(null))).toBe(true);
     expect(hasErrors(validateLayout({ ...CLASSIC_QWERTY, keys: undefined }))).toBe(true);
     expect(hasErrors(validateLayout({ ...CLASSIC_QWERTY, keys: [] }))).toBe(true);
+  });
+});
+
+describe("shaped keys and splits", () => {
+  it("moves parts with the key and stretches rectangles that cross the split", async () => {
+    const { moveKey, stretchRect, bounds } = await import("../lib/layout");
+    const k = { id: "e", x: 1, y: 1, w: 2, h: 2, label: "Enter", code: "KEY_ENTER", parts: [{ x: 1, y: 3, w: 6, h: 1 }] };
+    expect(moveKey(k, 1, 0.5).parts).toEqual([{ x: 2, y: 3.5, w: 6, h: 1 }]);
+    expect(bounds([k])).toEqual({ width: 7, height: 4 });
+    expect(stretchRect({ x: 1, y: 0, w: 2, h: 1 }, 4, 3)).toEqual({ x: 1, y: 0, w: 2, h: 1 });
+    expect(stretchRect({ x: 5, y: 0, w: 2, h: 1 }, 4, 3)).toEqual({ x: 8, y: 0, w: 2, h: 1 });
+    expect(stretchRect({ x: 1, y: 3, w: 6, h: 1 }, 4, 3)).toEqual({ x: 1, y: 3, w: 9, h: 1 });
   });
 });
