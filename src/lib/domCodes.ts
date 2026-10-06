@@ -1,0 +1,116 @@
+// KeyboardEvent.code → Linux key name, for "press a key to pick it".
+// KeyboardEvent.code names physical positions, the same idea as Linux key
+// codes, so the mapping holds whatever layout the browser's OS uses.
+
+const MAP: Record<string, string> = {
+  Escape: "KEY_ESC",
+  Minus: "KEY_MINUS",
+  Equal: "KEY_EQUAL",
+  Backspace: "KEY_BACKSPACE",
+  Tab: "KEY_TAB",
+  BracketLeft: "KEY_LEFTBRACE",
+  BracketRight: "KEY_RIGHTBRACE",
+  Enter: "KEY_ENTER",
+  ControlLeft: "KEY_LEFTCTRL",
+  Semicolon: "KEY_SEMICOLON",
+  Quote: "KEY_APOSTROPHE",
+  Backquote: "KEY_GRAVE",
+  ShiftLeft: "KEY_LEFTSHIFT",
+  Backslash: "KEY_BACKSLASH",
+  Comma: "KEY_COMMA",
+  Period: "KEY_DOT",
+  Slash: "KEY_SLASH",
+  ShiftRight: "KEY_RIGHTSHIFT",
+  NumpadMultiply: "KEY_KPASTERISK",
+  AltLeft: "KEY_LEFTALT",
+  Space: "KEY_SPACE",
+  CapsLock: "KEY_CAPSLOCK",
+  NumLock: "KEY_NUMLOCK",
+  ScrollLock: "KEY_SCROLLLOCK",
+  NumpadSubtract: "KEY_KPMINUS",
+  NumpadAdd: "KEY_KPPLUS",
+  NumpadDecimal: "KEY_KPDOT",
+  IntlBackslash: "KEY_102ND",
+  NumpadEnter: "KEY_KPENTER",
+  ControlRight: "KEY_RIGHTCTRL",
+  NumpadDivide: "KEY_KPSLASH",
+  PrintScreen: "KEY_SYSRQ",
+  AltRight: "KEY_RIGHTALT",
+  Home: "KEY_HOME",
+  ArrowUp: "KEY_UP",
+  PageUp: "KEY_PAGEUP",
+  ArrowLeft: "KEY_LEFT",
+  ArrowRight: "KEY_RIGHT",
+  End: "KEY_END",
+  ArrowDown: "KEY_DOWN",
+  PageDown: "KEY_PAGEDOWN",
+  Insert: "KEY_INSERT",
+  Delete: "KEY_DELETE",
+  AudioVolumeMute: "KEY_MUTE",
+  VolumeMute: "KEY_MUTE",
+  AudioVolumeDown: "KEY_VOLUMEDOWN",
+  VolumeDown: "KEY_VOLUMEDOWN",
+  AudioVolumeUp: "KEY_VOLUMEUP",
+  VolumeUp: "KEY_VOLUMEUP",
+  Power: "KEY_POWER",
+  NumpadEqual: "KEY_KPEQUAL",
+  Pause: "KEY_PAUSE",
+  NumpadComma: "KEY_KPCOMMA",
+  MetaLeft: "KEY_LEFTMETA",
+  OSLeft: "KEY_LEFTMETA",
+  MetaRight: "KEY_RIGHTMETA",
+  OSRight: "KEY_RIGHTMETA",
+  ContextMenu: "KEY_COMPOSE",
+  MediaTrackNext: "KEY_NEXTSONG",
+  MediaPlayPause: "KEY_PLAYPAUSE",
+  MediaTrackPrevious: "KEY_PREVIOUSSONG",
+  MediaStop: "KEY_STOPCD",
+  Eject: "KEY_EJECTCD",
+  IntlRo: "KEY_RO",
+  IntlYen: "KEY_YEN",
+  KanaMode: "KEY_KATAKANAHIRAGANA",
+  Convert: "KEY_HENKAN",
+  NonConvert: "KEY_MUHENKAN",
+  Lang1: "KEY_HANGEUL",
+  Lang2: "KEY_HANJA",
+  BrowserBack: "KEY_BACK",
+  BrowserForward: "KEY_FORWARD",
+  BrowserRefresh: "KEY_REFRESH",
+  BrowserHome: "KEY_HOMEPAGE",
+  BrowserSearch: "KEY_SEARCH",
+  LaunchMail: "KEY_MAIL",
+  LaunchApp1: "KEY_COMPUTER",
+  LaunchApp2: "KEY_CALC",
+  Sleep: "KEY_SLEEP",
+  WakeUp: "KEY_WAKEUP",
+  Fn: "KEY_FN",
+  NumpadParenLeft: "KEY_KPLEFTPAREN",
+  NumpadParenRight: "KEY_KPRIGHTPAREN",
+  Help: "KEY_HELP",
+  Undo: "KEY_UNDO",
+  Copy: "KEY_COPY",
+  Paste: "KEY_PASTE",
+  Cut: "KEY_CUT",
+  Find: "KEY_FIND",
+  Again: "KEY_AGAIN",
+  Props: "KEY_PROPS",
+  Open: "KEY_OPEN",
+  Select: "KEY_SELECT",
+  F13: "KEY_F13",
+};
+
+for (let i = 0; i <= 9; i++) {
+  MAP[`Digit${i}`] = `KEY_${i}`;
+  MAP[`Numpad${i}`] = `KEY_KP${i}`;
+}
+for (let i = 1; i <= 24; i++) MAP[`F${i}`] = `KEY_F${i}`;
+for (let c = 65; c <= 90; c++) {
+  const ch = String.fromCharCode(c);
+  MAP[`Key${ch}`] = `KEY_${ch}`;
+}
+
+export const DOM_CODE_TO_LINUX: Readonly<Record<string, string>> = MAP;
+
+export function linuxKeyFromDomCode(code: string): string | undefined {
+  return MAP[code];
+}

@@ -1,0 +1,62 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://omakey.dev/spec/layout.schema.json",
+  "title": "Omakey layout",
+  "type": "object",
+  "required": ["format", "version", "id", "name", "width", "height", "keys"],
+  "additionalProperties": false,
+  "properties": {
+    "format": { "const": "omakey-layout" },
+    "version": { "const": 1 },
+    "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]{0,63}$" },
+    "name": { "type": "string", "minLength": 1, "maxLength": 64 },
+    "author": { "type": "string", "maxLength": 64 },
+    "description": { "type": "string", "maxLength": 512 },
+    "width": { "type": "number", "exclusiveMinimum": 0, "maximum": 64 },
+    "height": { "type": "number", "exclusiveMinimum": 0, "maximum": 32 },
+    "keys": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 256,
+      "items": { "$ref": "#/$defs/key" }
+    }
+  },
+  "$defs": {
+    "keyName": { "type": "string", "pattern": "^KEY_[A-Z0-9_]+$" },
+    "label": { "type": "string", "maxLength": 16 },
+    "layerName": { "type": "string", "pattern": "^[a-z][a-z0-9]{0,15}$" },
+    "key": {
+      "type": "object",
+      "required": ["id", "x", "y", "w", "h", "label"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 64 },
+        "x": { "type": "number", "minimum": 0 },
+        "y": { "type": "number", "minimum": 0 },
+        "w": { "type": "number", "minimum": 0.25, "maximum": 16 },
+        "h": { "type": "number", "minimum": 0.25, "maximum": 16 },
+        "label": { "$ref": "#/$defs/label" },
+        "sub": { "$ref": "#/$defs/label" },
+        "code": { "$ref": "#/$defs/keyName" },
+        "layer": { "$ref": "#/$defs/layerName" },
+        "style": { "enum": ["normal", "mod", "fkey", "accent", "space"] },
+        "layers": {
+          "type": "object",
+          "propertyNames": { "$ref": "#/$defs/layerName" },
+          "additionalProperties": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "code": { "$ref": "#/$defs/keyName" },
+              "label": { "$ref": "#/$defs/label" }
+            }
+          }
+        }
+      },
+      "oneOf": [
+        { "required": ["code"], "not": { "required": ["layer"] } },
+        { "required": ["layer"], "not": { "required": ["code"] } }
+      ]
+    }
+  }
+}
