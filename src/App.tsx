@@ -7,7 +7,7 @@ import { LayoutPanel } from "./components/LayoutPanel";
 import { SharePanel } from "./components/SharePanel";
 import { historyReducer, initHistory, type History, type HistoryAction } from "./lib/history";
 import {
-  blankLayout, bounds, cleanLayout, CLASSIC_QWERTY, cloneLayout, fitToKeys, layerNames, newKey, round, snap, STEP, uniqueId,
+  blankLayout, bounds, cleanLayout, CLASSIC_QWERTY, cloneLayout, STOCK_LAYOUTS, fitToKeys, layerNames, newKey, round, snap, STEP, uniqueId,
 } from "./lib/layout";
 import { decodePayload, extractPayload, HASH_PREFIX } from "./lib/share";
 import { loadPrefs, loadSaved, save, savePrefs } from "./lib/storage";
@@ -237,9 +237,11 @@ export function App() {
             <button type="button" onClick={() => setNewOpen(!newOpen)}>New ▾</button>
             {newOpen && (
               <div className="menu-pop" onPointerLeave={() => setNewOpen(false)}>
-                <button type="button" onClick={() => { load(cloneLayout(CLASSIC_QWERTY), "Started from Classic QWERTY. Undo brings back your old layout."); setNewOpen(false); }}>
-                  From Classic QWERTY
-                </button>
+                {STOCK_LAYOUTS.map((stock) => (
+                  <button key={stock.id} type="button" onClick={() => { load(cloneLayout(stock), `Started from ${stock.name}. Undo brings back your old layout.`); setNewOpen(false); }}>
+                    From {stock.name}
+                  </button>
+                ))}
                 <button type="button" onClick={() => { load(blankLayout(), "Blank layout. Undo brings back your old layout."); setNewOpen(false); }}>
                   Blank
                 </button>

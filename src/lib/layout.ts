@@ -1,8 +1,11 @@
 import classic from "../../spec/layouts/classic-qwerty.json";
+import split from "../../spec/layouts/split-qwerty.json";
 import { defaultLabel } from "./keycodes";
 import type { Layout, LayoutKey } from "./types";
 
 export const CLASSIC_QWERTY = classic as Layout;
+export const SPLIT_QWERTY = split as Layout;
+export const STOCK_LAYOUTS: Layout[] = [CLASSIC_QWERTY, SPLIT_QWERTY];
 
 export const STEP = 0.25;
 

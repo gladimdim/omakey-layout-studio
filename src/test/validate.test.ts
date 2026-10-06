@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { blankLayout, CLASSIC_QWERTY, cleanLayout, cloneLayout } from "../lib/layout";
+import { blankLayout, CLASSIC_QWERTY, cleanLayout, cloneLayout, STOCK_LAYOUTS } from "../lib/layout";
 import type { Layout } from "../lib/types";
 import { hasErrors, validateLayout } from "../lib/validate";
 
@@ -8,6 +8,10 @@ const errors = (l: unknown) => validateLayout(l).filter((i) => i.severity === "e
 describe("validateLayout", () => {
   it("accepts the stock Classic QWERTY layout with no issues at all", () => {
     expect(validateLayout(CLASSIC_QWERTY)).toEqual([]);
+  });
+
+  it.each(STOCK_LAYOUTS.map((l) => [l.name, l] as const))("accepts the stock %s layout with no issues at all", (_, layout) => {
+    expect(validateLayout(layout)).toEqual([]);
   });
 
   it("accepts the blank starter layout", () => {
