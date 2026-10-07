@@ -27,14 +27,38 @@ interface Props {
   invalid?: boolean;
   onPointerDown?: (e: React.PointerEvent, index: number) => void;
   showHandles?: boolean;
-  onHandleDown?: (e: React.PointerEvent, index: number, edge: "e" | "s" | "se") => void;
+  /** `part` is the index into `k.parts` when a part's handle is grabbed. */
+  onHandleDown?: (e: React.PointerEvent, index: number, edge: Edge, part?: number) => void;
+  /** Makes the key a focusable button; Enter/Space selects it (Shift/Ctrl adds to the selection). */
+  onActivate?: (index: number, additive: boolean) => void;
 }
 
-export function Keycap({ k, index, unit, offset, layer, selected, invalid, onPointerDown, showHandles, onHandleDown }: Props) {
+export type Edge = "e" | "s" | "se";
+
+function Handles({ onDown }: { onDown: (e: React.PointerEvent, edge: Edge) => void }) {
+  return (
+    <>
+      <span className="handle e" onPointerDown={(e) => onDown(e, "e")} />
+      <span className="handle s" onPointerDown={(e) => onDown(e, "s")} />
+      <span className="handle se" onPointerDown={(e) => onDown(e, "se")} />
+    </>
+  );
+}
+
+/** The key's accessible name: what it shows, then what it does. */
+function keyName(k: LayoutKey, layer: string): string {
+  const view = keyOnLayer(k, layer);
+  const shown = view.label.trim() || (k.sub ?? "").trim() || "blank";
+  const action = k.layer ? `layer ${k.layer} key` : view.disabled ? "disabled on this layer" : view.code ?? "no code";
+  return `${shown}, ${action}`;
+}
+
+export function Keycap({ k, index, unit, offset, layer, selected, invalid, onPointerDown, showHandles, onHandleDown, onActivate }: Props) {
   const view = keyOnLayer(k, layer);
   const gap = Math.max(1, unit * 0.06);
   const width = Math.max(2, k.w * unit - gap);
-  const text = view.disabled ? "∅" : view.label;
+  // A disabled key shows its entry's label, which is usually none (spec/LAYOUT.md, "Layers").
+  const text = String(view.label ?? "");
   // Shrink long labels (PrtSc, AltGr) to fit instead of cutting them off.
   const base = unit * 0.27 * (k.style === "mod" || k.style === "fkey" ? 0.88 : 1);
   const fit = (width - 6) / (Math.max(1, [...text].length) * 0.62);
@@ -61,6 +85,7 @@ export function Keycap({ k, index, unit, offset, layer, selected, invalid, onPoi
 
   const rects = keyRects(k);
   const extra = rects.slice(1).map((r, n) => {
+    if (typeof r !== "object" || r === null) return null;
     const j = joined(r, rects, gap / 2 + 1);
     return (
       <div
@@ -74,7 +99,9 @@ export function Keycap({ k, index, unit, offset, layer, selected, invalid, onPoi
         }}
         data-index={index}
         onPointerDown={onPointerDown ? (e) => onPointerDown(e, index) : undefined}
-      />
+      >
+        {showHandles && onHandleDown && <Handles onDown={(e, edge) => onHandleDown(e, index, edge, n)} />}
+      </div>
     );
   });
   if (rects.length > 1) {
@@ -94,16 +121,21 @@ export function Keycap({ k, index, unit, offset, layer, selected, invalid, onPoi
       data-index={index}
       onPointerDown={onPointerDown ? (e) => onPointerDown(e, index) : undefined}
       title={`${k.id} · ${k.layer ? `layer ${k.layer}` : view.code ?? "no code"}`}
+      {...(onActivate && {
+        role: "button",
+        tabIndex: 0,
+        "aria-pressed": !!selected,
+        "aria-label": keyName(k, layer),
+        onKeyDown: (e: React.KeyboardEvent) => {
+          if (e.key !== "Enter" && e.key !== " ") return;
+          e.preventDefault();
+          onActivate(index, e.shiftKey || e.ctrlKey || e.metaKey);
+        },
+      })}
     >
-      {k.sub && !layer && <span className="sub" style={{ fontSize: Math.max(4, unit * 0.19) }}>{k.sub}</span>}
-      <span className="label">{text}</span>
-      {showHandles && onHandleDown && (
-        <>
-          <span className="handle e" onPointerDown={(e) => onHandleDown(e, index, "e")} />
-          <span className="handle s" onPointerDown={(e) => onHandleDown(e, index, "s")} />
-          <span className="handle se" onPointerDown={(e) => onHandleDown(e, index, "se")} />
-        </>
-      )}
+      {typeof k.sub === "string" && k.sub && !layer && <span className="sub" style={{ fontSize: Math.max(4, unit * 0.19) }}>{k.sub}</span>}
+      <span className="label" aria-hidden={onActivate ? true : undefined}>{text}</span>
+      {showHandles && onHandleDown && <Handles onDown={(e, edge) => onHandleDown(e, index, edge)} />}
     </div>
     </>
   );

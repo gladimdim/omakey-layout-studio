@@ -61,30 +61,53 @@ two halves. The rest of the gap receives no touches.
 | `sub`    | string | no       | small secondary label (the shifted symbol) |
 | `code`   | string | one of   | Linux key name from `keycodes.json`, e.g. `KEY_A` |
 | `layer`  | string | one of   | momentary layer key: held, it switches keys to that layer |
-| `layers` | object | no       | per-layer override: `{ "<layer>": { "code": "KEY_…", "label": "…" } }` |
+| `layers` | object | no       | per-layer override: `{ "<layer>": { "code": "KEY_…", "label": "…" } }`; see [Layers](#layers) for what it sends and shows |
 | `style`  | string | no       | `normal` (default), `mod`, `fkey`, `accent`, `space` |
 | `parts`  | array  | no       | extra rectangles of the same key: `[{ "x": 7, "y": 5, "w": 6, "h": 1 }]` |
 
 A key's `x`/`y`/`w`/`h` is its main rectangle, where the label goes. `parts`
 (1–8 rectangles, same units) make shaped keys, such as an L-shaped ISO
 Enter or a U-shaped Enter spanning both halves; a touch on any part presses
-the key, and the app draws the parts as one key.
+the key, and the app draws the parts as one key. A part's `x`/`y` is an
+absolute position in the layout, like the key's own, not an offset from the
+main rectangle, and follows the same limits (`x`, `y` ≥ 0; `w`, `h` 0.25–16).
 
 A key has exactly one of `code` or `layer`. Layer names are free-form
-lowercase words; `fn` is the conventional one. While a layer key is held,
-a key with an entry for that layer sends the entry's `code`; keys without an
-entry keep their base code. A layer entry without `code` disables the key on
-that layer.
+lowercase words; `fn` is the conventional one.
 
 Codes are **physical key codes**, not characters. The desktop's keyboard
 layout decides what a key types, exactly as with a real keyboard, so a
 QWERTY-positioned layout types Ukrainian when the desktop is switched to
 Ukrainian. Labels are only what the phone draws.
 
+## Layers
+
+While a layer key is held, every key with an entry for that layer in its
+`layers` object uses the entry instead of its base `code` and `label`. Keys
+without an entry keep their base code and label. Layer keys themselves send
+nothing on any layer, so entries on them have no effect.
+
+An entry `{ "code": "KEY_…", "label": "…" }` sends its `code` and shows its
+`label`. **Label rule:**
+
+1. An entry with a `label` shows that label, even an empty one (`""`).
+2. An entry without a `label` shows the `label` that `keycodes.json` lists
+   for its `code` (`KEY_PAGEUP` → `PgUp`), or, if it lists none, the code
+   name without `KEY_`.
+3. An entry without a `code`, or with `"code": null` (for example `{}`),
+   disables the key on that layer: it sends nothing. Unless it has a
+   `label` (rule 1), it shows an empty label; apps draw no placeholder
+   such as `∅`.
+
+While no layer is held, the app may print an `fn` entry's own `label` small
+in the key's corner, like the Fn legends on a laptop keyboard.
+
 ## Limits
 
 - At most 256 keys per layout.
-- `id` and `name` at most 64 characters; labels at most 16.
+- `id` and `name` at most 64 characters; labels at most 16. Lengths count
+  Unicode code points, as JSON Schema's `maxLength` does, so an emoji
+  outside the Basic Multilingual Plane is one character, not two.
 - Files over 256 KB are rejected.
 
 ## Sharing

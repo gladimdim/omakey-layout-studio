@@ -2,6 +2,7 @@
 // plus warnings for layouts that are valid but probably not what you meant.
 
 import { isKnownCode } from "./keycodes";
+import { codePointLength as len } from "./text";
 import { KEY_STYLES, LIMITS } from "./types";
 
 export type Severity = "error" | "warning";
@@ -53,13 +54,13 @@ export function validateLayout(input: unknown): Issue[] {
   if (l.version !== 1) err('"version" must be 1.');
   if (typeof l.id !== "string" || !LAYOUT_ID.test(l.id))
     err('Layout "id" must be 1–64 lowercase letters, digits or dashes, starting with a letter or digit.');
-  if (typeof l.name !== "string" || l.name.length < 1 || l.name.length > LIMITS.maxNameLength)
+  if (typeof l.name !== "string" || len(l.name) < 1 || len(l.name) > LIMITS.maxNameLength)
     err(`Layout "name" must be 1–${LIMITS.maxNameLength} characters.`);
-  if (l.author !== undefined && (typeof l.author !== "string" || l.author.length > LIMITS.maxAuthorLength))
+  if (l.author !== undefined && (typeof l.author !== "string" || len(l.author) > LIMITS.maxAuthorLength))
     err(`"author" must be at most ${LIMITS.maxAuthorLength} characters.`);
   if (
     l.description !== undefined &&
-    (typeof l.description !== "string" || l.description.length > LIMITS.maxDescriptionLength)
+    (typeof l.description !== "string" || len(l.description) > LIMITS.maxDescriptionLength)
   )
     err(`"description" must be at most ${LIMITS.maxDescriptionLength} characters.`);
   const widthOk = isNum(l.width) && l.width > 0 && l.width <= LIMITS.maxWidth;
@@ -94,7 +95,7 @@ export function validateLayout(input: unknown): Issue[] {
 
     for (const f of Object.keys(k)) if (!KEY_FIELDS.has(f)) e(`unknown field "${f}".`);
 
-    if (id === undefined || id.length < 1 || id.length > LIMITS.maxIdLength) {
+    if (id === undefined || len(id) < 1 || len(id) > LIMITS.maxIdLength) {
       e(`"id" must be a string of 1–${LIMITS.maxIdLength} characters.`);
     } else if (ids.has(id)) {
       e(`duplicate id; key #${ids.get(id)! + 1} already uses it.`);
@@ -135,8 +136,8 @@ export function validateLayout(input: unknown): Issue[] {
     }
 
     if (typeof k.label !== "string") e('"label" is required (it may be empty).');
-    else if (k.label.length > LIMITS.maxLabelLength) e(`"label" is longer than ${LIMITS.maxLabelLength} characters.`);
-    if (k.sub !== undefined && (typeof k.sub !== "string" || k.sub.length > LIMITS.maxLabelLength))
+    else if (len(k.label) > LIMITS.maxLabelLength) e(`"label" is longer than ${LIMITS.maxLabelLength} characters.`);
+    if (k.sub !== undefined && (typeof k.sub !== "string" || len(k.sub) > LIMITS.maxLabelLength))
       e(`"sub" must be a string of at most ${LIMITS.maxLabelLength} characters.`);
 
     const hasCode = k.code !== undefined;
@@ -166,8 +167,9 @@ export function validateLayout(input: unknown): Issue[] {
           }
           for (const f of Object.keys(ov))
             if (!OVERRIDE_FIELDS.has(f)) e(`layer "${layer}" override has unknown field "${f}".`);
-          if (ov.code !== undefined) checkCode(ov.code, e, `layer "${layer}" code`);
-          if (ov.label !== undefined && (typeof ov.label !== "string" || ov.label.length > LIMITS.maxLabelLength))
+          // No code, or "code": null, disables the key on that layer.
+          if (ov.code !== undefined && ov.code !== null) checkCode(ov.code, e, `layer "${layer}" code`);
+          if (ov.label !== undefined && (typeof ov.label !== "string" || len(ov.label) > LIMITS.maxLabelLength))
             e(`layer "${layer}" label must be a string of at most ${LIMITS.maxLabelLength} characters.`);
         }
       }

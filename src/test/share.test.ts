@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { CLASSIC_QWERTY } from "../lib/layout";
+import { deflateSync } from "fflate";
 import {
-  APP_LINK_PREFIX, appLink, decodePayload, encodeLayout, extractPayload, fromBase64Url, studioLink, toBase64Url,
+  APP_LINK_PREFIX, appLink, decodePayload, encodeLayout, extractPayload, fromBase64Url, MAX_INFLATED_BYTES,
+  PayloadTooLargeError, studioLink, toBase64Url,
 } from "../lib/share";
 
 describe("share codec", () => {
@@ -44,5 +46,43 @@ describe("share codec", () => {
     expect(extractPayload(studioLink(payload, "https://example.org/studio/#old"))).toBe(payload);
     expect(extractPayload(`  ${payload}\n`)).toBe(payload);
     expect(extractPayload('{"format":"omakey-layout"}')).toBeUndefined();
+  });
+
+  it("finds d= in any position of an app link or https link", async () => {
+    const payload = await encodeLayout(CLASSIC_QWERTY);
+    expect(extractPayload(`omakey://layout?x=1&d=${payload}`)).toBe(payload);
+    expect(extractPayload(`omakey://layout?d=${payload}&v=1`)).toBe(payload);
+    expect(extractPayload(`omakey://layout?a=&b=2&d=${payload}&c`)).toBe(payload);
+    expect(extractPayload(`https://omakey.example/layout?ref=qr&d=${payload}`)).toBe(payload);
+    expect(extractPayload(`https://example.org/studio/?x=1#layout=${payload}`)).toBe(payload);
+    expect(extractPayload(`https://example.org/studio/#v=2&layout=${payload}`)).toBe(payload);
+    expect(extractPayload("omakey://layout?x=1&dd=abc")).toBeUndefined();
+    expect(extractPayload("https://example.org/studio/#old")).toBeUndefined();
+  });
+});
+
+describe("share decode size cap", () => {
+  // 16 MB of zeros compresses to ~16 KB: a deflate bomb. Built once.
+  let cached = "";
+  const bomb = () => (cached ||= toBase64Url(deflateSync(new Uint8Array(16 * 1024 * 1024), { level: 9 })));
+
+  it.each([[true], [false]])("refuses to inflate past 256 KB (streams: %s)", async (useStreams) => {
+    const payload = bomb();
+    expect(payload.length).toBeLessThan(MAX_INFLATED_BYTES * 2);
+    const t = Date.now();
+    await expect(decodePayload(payload, useStreams)).rejects.toBeInstanceOf(PayloadTooLargeError);
+    expect(Date.now() - t).toBeLessThan(5000);
+  });
+
+  it.each([[true], [false]])("still decodes a layout just under the cap (streams: %s)", async (useStreams) => {
+    const json = JSON.stringify({ pad: "x".repeat(MAX_INFLATED_BYTES - 20) });
+    expect(json.length).toBeLessThanOrEqual(MAX_INFLATED_BYTES);
+    const payload = toBase64Url(deflateSync(new TextEncoder().encode(json)));
+    expect(await decodePayload(payload, useStreams)).toEqual(JSON.parse(json));
+    await expect(decodePayload(payload, useStreams, 1024)).rejects.toBeInstanceOf(PayloadTooLargeError);
+  });
+
+  it.each([[true], [false]])("rejects corrupt payloads (streams: %s)", async (useStreams) => {
+    await expect(decodePayload("not-a-deflate-stream-at-all", useStreams)).rejects.toThrow();
   });
 });

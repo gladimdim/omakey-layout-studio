@@ -33,8 +33,9 @@ export function isKnownCode(name: string): boolean {
   return KEYCODE_BY_NAME.has(name);
 }
 
+/** The label keycodes.json gives a code, or the code name without KEY_. */
 export function defaultLabel(name: string): string {
-  return KEYCODE_BY_NAME.get(name)?.label ?? name.replace(/^KEY_/, "");
+  return KEYCODE_BY_NAME.get(name)?.label || name.replace(/^KEY_/, "");
 }
 
 export function searchKeycodes(query: string): KeyCode[] {

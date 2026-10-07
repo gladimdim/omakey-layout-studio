@@ -64,7 +64,10 @@
             "type": "object",
             "additionalProperties": false,
             "properties": {
-              "code": { "$ref": "#/$defs/keyName" },
+              "code": {
+                "description": "Key code sent on this layer; absent or null disables the key on the layer.",
+                "oneOf": [{ "$ref": "#/$defs/keyName" }, { "type": "null" }]
+              },
               "label": { "$ref": "#/$defs/label" }
             }
           }

@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { clampCodePoints } from "../lib/text";
 
 interface NumberFieldProps {
   label: string;
@@ -43,25 +44,27 @@ export function NumberField({ label, value, step = 0.25, min, max, placeholder, 
 interface TextFieldProps {
   label: string;
   value: string;
-  maxLength?: number;
+  /** Limit in code points, as the spec counts. Not the maxLength attribute, which counts UTF-16 units and can cut an emoji in half. */
+  maxChars?: number;
   placeholder?: string;
   list?: string;
+  hint?: string;
   onChange: (v: string) => void;
 }
 
-export function TextField({ label, value, maxLength, placeholder, list, onChange }: TextFieldProps) {
+export function TextField({ label, value, maxChars, placeholder, list, hint, onChange }: TextFieldProps) {
   return (
     <label className="field">
       <span>{label}</span>
       <input
         type="text"
         value={value}
-        maxLength={maxLength}
         placeholder={placeholder}
         list={list}
         spellCheck={false}
-        onChange={(e) => onChange(e.target.value)}
+        onChange={(e) => onChange(maxChars === undefined ? e.target.value : clampCodePoints(e.target.value, maxChars))}
       />
+      {hint && <small className="field-hint">{hint}</small>}
     </label>
   );
 }

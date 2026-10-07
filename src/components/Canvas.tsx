@@ -1,7 +1,7 @@
 import { forwardRef, useRef, useState } from "react";
 import { round, snap, STEP, moveKey, keyRects } from "../lib/layout";
 import type { Layout, LayoutKey } from "../lib/types";
-import { Keycap } from "./Keycap";
+import { Keycap, type Edge } from "./Keycap";
 
 export const MARGIN_UNITS = 1;
 
@@ -18,7 +18,7 @@ interface Props {
 
 type Drag =
   | { mode: "move"; startX: number; startY: number; anchor: number; orig: Map<number, LayoutKey>; moved: boolean; additive: boolean; merge: string }
-  | { mode: "resize"; startX: number; startY: number; index: number; edge: "e" | "s" | "se"; orig: LayoutKey; merge: string }
+  | { mode: "resize"; startX: number; startY: number; index: number; edge: Edge; part?: number; orig: LayoutKey; merge: string }
   | { mode: "marquee"; startX: number; startY: number; x: number; y: number; base: number[] };
 
 let gesture = 0;
@@ -60,12 +60,17 @@ export const Canvas = forwardRef<HTMLDivElement, Props>(function Canvas(
     drag.current = { mode: "move", startX: p.x, startY: p.y, anchor: index, orig, moved: false, additive, merge: `drag-${++gesture}` };
   }
 
-  function onHandleDown(e: React.PointerEvent, index: number, edge: "e" | "s" | "se") {
+  function onHandleDown(e: React.PointerEvent, index: number, edge: Edge, part?: number) {
     if (e.button !== 0) return;
     e.stopPropagation();
     boardRef.current!.setPointerCapture(e.pointerId);
     const p = local(e);
-    drag.current = { mode: "resize", startX: p.x, startY: p.y, index, edge, orig: layout.keys[index], merge: `resize-${++gesture}` };
+    drag.current = { mode: "resize", startX: p.x, startY: p.y, index, edge, part, orig: layout.keys[index], merge: `resize-${++gesture}` };
+  }
+
+  function onActivate(index: number, additive: boolean) {
+    if (additive) onSelect(selected.includes(index) ? selected.filter((i) => i !== index) : [...selected, index]);
+    else onSelect([index]);
   }
 
   function onBoardDown(e: React.PointerEvent) {
@@ -103,10 +108,14 @@ export const Canvas = forwardRef<HTMLDivElement, Props>(function Canvas(
         }),
       }), d.merge);
     } else if (d.mode === "resize") {
-      const o = d.orig;
+      const part = d.part;
+      const o = part === undefined ? d.orig : d.orig.parts?.[part];
+      if (!o) return;
       const w = d.edge === "s" ? o.w : clampSize(q(o.w + dx));
       const h = d.edge === "e" ? o.h : clampSize(q(o.h + dy));
-      onApply((l) => ({ ...l, keys: l.keys.map((k, i) => (i === d.index ? { ...k, w, h } : k)) }), d.merge);
+      const resize = (k: LayoutKey): LayoutKey =>
+        part === undefined ? { ...k, w, h } : { ...k, parts: k.parts?.map((p, n) => (n === part ? { ...p, w, h } : p)) };
+      onApply((l) => ({ ...l, keys: l.keys.map((k, i) => (i === d.index ? resize(k) : k)) }), d.merge);
     } else {
       d.x = p.x;
       d.y = p.y;
@@ -132,6 +141,8 @@ export const Canvas = forwardRef<HTMLDivElement, Props>(function Canvas(
       <div
         ref={boardRef}
         className="board"
+        role="group"
+        aria-label="Layout canvas: Tab through keys, Enter or Space selects, arrows move the selection"
         style={{ width: boardW, height: boardH, backgroundSize: `${zoom * (snapOn ? STEP * 4 : 1)}px ${zoom * (snapOn ? STEP * 4 : 1)}px`, backgroundPosition: `${offset}px ${offset}px` }}
         onPointerDown={onBoardDown}
         onPointerMove={onMove}
@@ -155,6 +166,7 @@ export const Canvas = forwardRef<HTMLDivElement, Props>(function Canvas(
             onPointerDown={onKeyDown}
             showHandles={selected.length === 1 && selected[0] === i}
             onHandleDown={onHandleDown}
+            onActivate={onActivate}
           />
         ))}
         {layout.splitAt !== undefined && (

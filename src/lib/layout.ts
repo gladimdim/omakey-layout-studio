@@ -1,6 +1,6 @@
 import classic from "../../spec/layouts/classic-qwerty.json";
 import { defaultLabel } from "./keycodes";
-import type { KeyRect, Layout, LayoutKey } from "./types";
+import { LIMITS, type KeyRect, type LayerOverride, type Layout, type LayoutKey } from "./types";
 
 export const CLASSIC_QWERTY = classic as Layout;
 
@@ -45,13 +45,13 @@ export function blankLayout(): Layout {
 /** A key's rectangles: its main one first, then its extra parts. */
 export function keyRects(k: LayoutKey): KeyRect[] {
   const main = { x: k.x, y: k.y, w: k.w, h: k.h };
-  return k.parts?.length ? [main, ...k.parts] : [main];
+  return Array.isArray(k.parts) && k.parts.length ? [main, ...k.parts] : [main];
 }
 
 /** The key moved by (dx, dy), extra parts included. */
 export function moveKey(k: LayoutKey, dx: number, dy: number): LayoutKey {
   const out = { ...k, x: round(k.x + dx), y: round(k.y + dy) };
-  if (k.parts) out.parts = k.parts.map((p) => ({ ...p, x: round(p.x + dx), y: round(p.y + dy) }));
+  if (Array.isArray(k.parts)) out.parts = k.parts.map((p) => ({ ...p, x: round(p.x + dx), y: round(p.y + dy) }));
   return out;
 }
 
@@ -127,13 +127,17 @@ export function cleanKey(k: LayoutKey): LayoutKey {
   if (k.layer !== undefined) out.layer = k.layer;
   else if (k.code !== undefined) out.code = k.code;
   if (k.style && k.style !== "normal") out.style = k.style;
-  if (k.parts?.length) out.parts = k.parts.map((p) => ({ x: round(p.x), y: round(p.y), w: round(p.w), h: round(p.h) }));
-  if (k.layers) {
+  // Defensive about shapes too: this runs on every render, before validation.
+  const parts = Array.isArray(k.parts) ? k.parts.filter((p) => typeof p === "object" && p !== null) : [];
+  if (parts.length) out.parts = parts.map((p) => ({ x: round(p.x), y: round(p.y), w: round(p.w), h: round(p.h) }));
+  if (k.layers && typeof k.layers === "object") {
     const layers: Record<string, { code?: string; label?: string }> = {};
     for (const [name, ov] of Object.entries(k.layers)) {
+      if (typeof ov !== "object" || ov === null) continue;
       const o: { code?: string; label?: string } = {};
       if (ov.code) o.code = ov.code;
-      if (ov.label) o.label = ov.label;
+      // An empty label is meaningful ("show nothing"), so it is kept.
+      if (typeof ov.label === "string") o.label = ov.label;
       layers[name] = o;
     }
     if (Object.keys(layers).length) out.layers = layers;
@@ -159,14 +163,43 @@ export function cleanLayout(l: Layout): Layout {
   return splitAt === undefined ? { ...meta, width, height, keys } : { ...meta, width, height, splitAt, keys };
 }
 
+/**
+ * The label a layer entry shows (spec/LAYOUT.md, "Layers"): its `label`
+ * when it has one, even an empty one; else the keycodes.json label of its
+ * `code`; else nothing, because an entry without a code disables the key.
+ */
+export function overrideLabel(ov: LayerOverride): string {
+  if (typeof ov.label === "string") return ov.label;
+  return ov.code ? defaultLabel(ov.code) : "";
+}
+
 /** What a key shows and sends on a layer ("" = base). */
 export function keyOnLayer(k: LayoutKey, layer: string): { label: string; code?: string; overridden: boolean; disabled: boolean } {
   const ov = layer ? k.layers?.[layer] : undefined;
   if (!ov) return { label: k.label, code: k.code, overridden: false, disabled: false };
-  return {
-    label: ov.label ?? (ov.code ? defaultLabel(ov.code) : ""),
-    code: ov.code,
-    overridden: true,
-    disabled: !ov.code,
-  };
+  return { label: overrideLabel(ov), code: ov.code ?? undefined, overridden: true, disabled: !ov.code };
+}
+
+/**
+ * A new override that leaves the key looking and acting as on the base
+ * layer: the same code, plus the base label when it differs from the one
+ * keycodes.json would show for that code.
+ */
+export function initialOverride(k: LayoutKey): LayerOverride {
+  if (!k.code) return {};
+  return k.label === defaultLabel(k.code) ? { code: k.code } : { code: k.code, label: k.label };
+}
+
+/** Why a part breaks the spec, or "" when it is fine. */
+export function partProblem(p: KeyRect): string {
+  if (!(p.x >= 0 && p.y >= 0)) return "x and y must be 0 or more.";
+  if (!(p.w >= LIMITS.minKeySize && p.w <= LIMITS.maxKeySize && p.h >= LIMITS.minKeySize && p.h <= LIMITS.maxKeySize))
+    return `w and h must be between ${LIMITS.minKeySize} and ${LIMITS.maxKeySize}.`;
+  return "";
+}
+
+/** A new part: a 1u-high strip under the key's lowest rectangle, as wide as the main one. */
+export function newPart(k: LayoutKey): KeyRect {
+  const bottom = Math.max(...keyRects(k).map((r) => r.y + r.h));
+  return { x: k.x, y: round(bottom), w: k.w, h: 1 };
 }

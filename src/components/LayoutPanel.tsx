@@ -1,4 +1,5 @@
 import { LIMITS, type Layout } from "../lib/types";
+import { clampCodePoints } from "../lib/text";
 import { NumberField, TextField } from "./Fields";
 
 interface Props {
@@ -16,16 +17,15 @@ export function LayoutPanel({ layout, autoFit, onAutoFit, onApply }: Props) {
   return (
     <div className="inspector">
       <h3>Layout</h3>
-      <TextField label="Name" value={layout.name ?? ""} maxLength={LIMITS.maxNameLength} onChange={(v) => set("name", v)} />
-      <TextField label="Id" value={layout.id ?? ""} maxLength={64} placeholder="my-layout" onChange={(v) => set("id", slug(v))} />
-      <TextField label="Author" value={layout.author ?? ""} maxLength={LIMITS.maxAuthorLength} onChange={(v) => set("author", v)} />
+      <TextField label="Name" value={layout.name ?? ""} maxChars={LIMITS.maxNameLength} onChange={(v) => set("name", v)} />
+      <TextField label="Id" value={layout.id ?? ""} maxChars={LIMITS.maxIdLength} placeholder="my-layout" onChange={(v) => set("id", slug(v))} />
+      <TextField label="Author" value={layout.author ?? ""} maxChars={LIMITS.maxAuthorLength} onChange={(v) => set("author", v)} />
       <label className="field">
         <span>Description</span>
         <textarea
           rows={3}
-          maxLength={LIMITS.maxDescriptionLength}
           value={layout.description ?? ""}
-          onChange={(e) => set("description", e.target.value)}
+          onChange={(e) => set("description", clampCodePoints(e.target.value, LIMITS.maxDescriptionLength))}
         />
       </label>
       <label className="check">

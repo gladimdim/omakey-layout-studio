@@ -1,30 +1,52 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { Canvas, MARGIN_UNITS } from "./components/Canvas";
+import { CommitProbe, EditorBoundary } from "./components/ErrorBoundary";
 import { ImportDialog } from "./components/ImportDialog";
 import { Inspector } from "./components/Inspector";
 import { IssuesPanel } from "./components/IssuesPanel";
 import { LayoutPanel } from "./components/LayoutPanel";
+import { PresetDialog } from "./components/PresetDialog";
 import { SharePanel } from "./components/SharePanel";
-import { historyReducer, initHistory, type History, type HistoryAction } from "./lib/history";
+import { alignKeys, distributeKeys, type AlignMode, type DistributeAxis } from "./lib/align";
+import { pasteKeys, parseKeys, serializeKeys } from "./lib/clipboard";
+import { historyReducer, initHistory, MERGE_IDLE_MS, type History, type HistoryAction } from "./lib/history";
 import {
-  blankLayout, bounds, cleanLayout, CLASSIC_QWERTY, cloneLayout, moveKey, STOCK_LAYOUTS, fitToKeys, layerNames, newKey, round, snap, STEP, uniqueId,
+  bounds, cleanLayout, CLASSIC_QWERTY, cloneLayout, moveKey, fitToKeys, layerNames, newKey, round, snap, STEP, uniqueId,
 } from "./lib/layout";
-import { decodePayload, extractPayload, HASH_PREFIX } from "./lib/share";
+import { normalizeLayout } from "./lib/normalize";
+import { decodePayload, extractPayload, HASH_PREFIX, PayloadTooLargeError } from "./lib/share";
 import { loadPrefs, loadSaved, save, savePrefs } from "./lib/storage";
 import { LIMITS, type Layout } from "./lib/types";
 import { hasErrors, validateLayout } from "./lib/validate";
 
 type Tab = "key" | "layout" | "share" | "check";
+const TABS: Tab[] = ["key", "layout", "share", "check"];
 
-function looksLikeLayout(v: unknown): v is Layout {
-  return typeof v === "object" && v !== null && Array.isArray((v as Layout).keys) &&
-    (v as Layout).keys.every((k) => typeof k === "object" && k !== null);
+/** Arrow keys, Home and End move between the tabs of a tablist and focus the new tab. */
+function tabArrows<T>(e: React.KeyboardEvent, all: T[], current: T, pick: (t: T) => void) {
+  const i = all.indexOf(current);
+  const to = { ArrowRight: i + 1, ArrowDown: i + 1, ArrowLeft: i - 1, ArrowUp: i - 1, Home: 0, End: all.length - 1 }[e.key];
+  if (to === undefined) return;
+  e.preventDefault();
+  e.stopPropagation();
+  const n = (to + all.length) % all.length;
+  pick(all[n]);
+  const tabs = (e.currentTarget.parentElement?.querySelectorAll<HTMLElement>('[role="tab"]')) ?? [];
+  tabs[n]?.focus();
 }
 
 function initialLayout(): Layout {
-  const saved = loadSaved();
-  return looksLikeLayout(saved) ? saved : cloneLayout(CLASSIC_QWERTY);
+  return normalizeLayout(loadSaved())?.value ?? cloneLayout(CLASSIC_QWERTY);
 }
+
+const ALIGN_TOOLS: { mode: AlignMode; icon: string; title: string }[] = [
+  { mode: "left", icon: "⇤", title: "Align left edges" },
+  { mode: "hcenter", icon: "↔", title: "Align horizontal centres" },
+  { mode: "right", icon: "⇥", title: "Align right edges" },
+  { mode: "top", icon: "⤒", title: "Align top edges" },
+  { mode: "vcenter", icon: "↕", title: "Align vertical centres" },
+  { mode: "bottom", icon: "⤓", title: "Align bottom edges" },
+];
 
 function isTyping(target: EventTarget | null): boolean {
   const el = target as HTMLElement | null;
@@ -48,7 +70,11 @@ export function App() {
   const [dragOver, setDragOver] = useState(false);
   const [toast, setToast] = useState("");
   const [fitToken, setFitToken] = useState(0);
+  /** What normalisation had to change in the last imported layout, shown in Check. */
+  const [importFixes, setImportFixes] = useState<string[]>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
+  /** The last layout the editor rendered without crashing. */
+  const lastGood = useRef<Layout>(layout);
 
   const issues = useMemo(() => validateLayout(layout), [layout]);
   const invalid = useMemo(
@@ -65,39 +91,46 @@ export function App() {
   }, []);
 
   const apply = useCallback(
-    (fn: (l: Layout) => Layout, merge?: string) =>
-      dispatch({ type: "apply", fn: (l) => { const n = fn(l); return prefs.autoFit && n !== l ? fitToKeys(n) : n; }, merge }),
+    (fn: (l: Layout) => Layout, merge?: string, mergeWindow?: number) =>
+      dispatch({
+        type: "apply", fn: (l) => { const n = fn(l); return prefs.autoFit && n !== l ? fitToKeys(n) : n; },
+        merge, window: mergeWindow, at: Date.now(),
+      }),
     [prefs.autoFit],
   );
 
-  const load = useCallback((value: Layout, message?: string) => {
+  const load = useCallback((value: Layout, message?: string, fixes: string[] = []) => {
     dispatch({ type: "reset", value });
     setSelected([]);
     setLayer("");
+    setImportFixes(fixes);
     setFitToken((t) => t + 1);
     if (message) say(message);
   }, [say]);
 
   const importText = useCallback(async (text: string): Promise<string | undefined> => {
     if (new TextEncoder().encode(text).length > LIMITS.maxFileBytes) return "That file is over 256 KB; layouts are limited to 256 KB.";
-    let value: unknown;
+    let raw: unknown;
     try {
       const payload = extractPayload(text);
-      value = payload ? await decodePayload(payload) : JSON.parse(text);
-    } catch {
+      raw = payload ? await decodePayload(payload) : JSON.parse(text);
+    } catch (e) {
+      if (e instanceof PayloadTooLargeError) return `${e.message} Layouts are limited to 256 KB.`;
       return "That isn't layout JSON or a layout link.";
     }
-    if (!looksLikeLayout(value)) return "That JSON isn't an Omakey layout (it has no \"keys\" list).";
-    const problems = validateLayout(value);
-    load(value, hasErrors(problems) ? "Imported with errors — see Check" : `Imported “${value.name ?? "layout"}”`);
-    if (hasErrors(problems)) setTab("check");
+    // Repair what would crash the editor; the validator still reports the rest.
+    const n = normalizeLayout(raw);
+    if (!n) return "That JSON isn't an Omakey layout (it has no \"keys\" list).";
+    const bad = hasErrors(validateLayout(raw));
+    load(n.value, bad ? "Imported with errors — see Check" : `Imported “${n.value.name || "layout"}”`, n.fixes);
+    if (bad) setTab("check");
     return undefined;
   }, [load]);
 
   // Reopen a layout shared as a studio link, then drop the hash so a
   // refresh shows your edits instead of the original link.
   useEffect(() => {
-    if (window.location.hash.startsWith(HASH_PREFIX)) {
+    if (window.location.hash.startsWith(HASH_PREFIX) || /[#&]layout=/.test(window.location.hash)) {
       importText(window.location.href).then((err) => err && say(err));
       window.history.replaceState(null, "", window.location.pathname + window.location.search);
     }
@@ -158,7 +191,7 @@ export function App() {
     setSelected([]);
   }, [apply, selected]);
 
-  const nudge = useCallback((dx: number, dy: number, merge: string) => {
+  const nudge = useCallback((dx: number, dy: number, merge: string, mergeWindow?: number) => {
     apply((l) => {
       const picked = selected.map((i) => l.keys[i]).filter(Boolean);
       if (!picked.length) return l;
@@ -166,8 +199,67 @@ export function App() {
       const ddy = Math.max(dy, -Math.min(...picked.map((k) => k.y)));
       const q = (v: number) => (prefs.snapOn && Math.abs(dx + dy) >= STEP ? snap(v) : round(v));
       return { ...l, keys: l.keys.map((k, i) => (selected.includes(i) ? moveKey(k, q(k.x + ddx) - k.x, q(k.y + ddy) - k.y) : k)) };
-    }, merge);
+    }, merge, mergeWindow);
   }, [apply, selected, prefs.snapOn]);
+
+  const align = useCallback((mode: AlignMode) => {
+    apply((l) => alignKeys(l, selected, mode, prefs.snapOn ? STEP : 0));
+  }, [apply, selected, prefs.snapOn]);
+
+  const distribute = useCallback((axis: DistributeAxis) => {
+    apply((l) => distributeKeys(l, selected, axis, prefs.snapOn ? STEP : 0));
+  }, [apply, selected, prefs.snapOn]);
+
+  // Copy, cut and paste keys through the system clipboard. The DOM clipboard
+  // events need no permission prompt, and the JSON works across tabs.
+  useEffect(() => {
+    const ours = (e: ClipboardEvent) => {
+      if (importOpen || newOpen || isTyping(e.target) || isTyping(document.activeElement)) return false;
+      const sel = window.getSelection();
+      return !(sel && !sel.isCollapsed && sel.toString().trim()); // let page text be copied as usual
+    };
+    const onCopy = (e: ClipboardEvent) => {
+      if (!ours(e) || !selected.length || !e.clipboardData) return;
+      const keys = selected.map((i) => layout.keys[i]).filter(Boolean);
+      e.clipboardData.setData("text/plain", serializeKeys(keys));
+      e.preventDefault();
+      if (e.type === "cut") {
+        apply((l) => ({ ...l, keys: l.keys.filter((_, i) => !selected.includes(i)) }));
+        setSelected([]);
+        say(`Cut ${keys.length} key${keys.length > 1 ? "s" : ""}`);
+      } else {
+        say(`Copied ${keys.length} key${keys.length > 1 ? "s" : ""}`);
+      }
+    };
+    const onPaste = (e: ClipboardEvent) => {
+      if (!ours(e) || !e.clipboardData) return;
+      const keys = parseKeys(e.clipboardData.getData("text/plain"));
+      if (!keys) {
+        say("The clipboard has no Omakey keys to paste.");
+        return;
+      }
+      e.preventDefault();
+      const room = LIMITS.maxKeys - layout.keys.length;
+      if (room <= 0) {
+        say(`A layout may have at most ${LIMITS.maxKeys} keys.`);
+        return;
+      }
+      const picked = keys.slice(0, room);
+      const { indices } = pasteKeys(layout, picked);
+      apply((l) => pasteKeys(l, picked).layout);
+      setSelected(indices);
+      setTab("key");
+      say(`Pasted ${picked.length} key${picked.length > 1 ? "s" : ""}${picked.length < keys.length ? ` (${keys.length - picked.length} over the limit left out)` : ""}`);
+    };
+    window.addEventListener("copy", onCopy);
+    window.addEventListener("cut", onCopy);
+    window.addEventListener("paste", onPaste);
+    return () => {
+      window.removeEventListener("copy", onCopy);
+      window.removeEventListener("cut", onCopy);
+      window.removeEventListener("paste", onPaste);
+    };
+  }, [apply, importOpen, newOpen, layout, say, selected]);
 
   const exportJson = useCallback(() => {
     const blob = new Blob([JSON.stringify(cleaned, null, 2) + "\n"], { type: "application/json" });
@@ -180,7 +272,7 @@ export function App() {
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.defaultPrevented || isTyping(e.target) || importOpen) return;
+      if (e.defaultPrevented || isTyping(e.target) || importOpen || newOpen) return;
       const mod = e.ctrlKey || e.metaKey;
       const k = e.key.toLowerCase();
       if (mod && k === "z") { e.preventDefault(); dispatch({ type: e.shiftKey ? "redo" : "undo" }); return; }
@@ -188,19 +280,20 @@ export function App() {
       if (mod && k === "a") { e.preventDefault(); setSelected(layout.keys.map((_, i) => i)); return; }
       if (mod && k === "d") { e.preventDefault(); duplicate(); return; }
       if (mod) return;
-      if (k === "escape") setSelected([]);
+      if (k === "escape") { if (newOpen) setNewOpen(false); else setSelected([]); }
       else if (k === "delete" || k === "backspace") { e.preventDefault(); remove(); }
       else if (k === "a") addKey();
       else if (k.startsWith("arrow") && selected.length) {
         e.preventDefault();
         const step = e.shiftKey ? 1 : prefs.snapOn ? STEP : 0.05;
         const [dx, dy] = { arrowleft: [-step, 0], arrowright: [step, 0], arrowup: [0, -step], arrowdown: [0, step] }[k] ?? [0, 0];
-        nudge(dx, dy, `nudge-${selected.join(",")}`);
+        // A pause or a long run of nudges starts a new undo step.
+        nudge(dx, dy, `nudge-${selected.join(",")}`, MERGE_IDLE_MS);
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [addKey, duplicate, remove, nudge, selected, layout.keys, prefs.snapOn, importOpen]);
+  }, [addKey, duplicate, remove, nudge, selected, layout.keys, prefs.snapOn, importOpen, newOpen]);
 
   // Seal merge groups when the pointer is released, so two separate field
   // edits or nudges don't become one undo step after a pause.
@@ -233,21 +326,7 @@ export function App() {
         </div>
 
         <div className="group">
-          <div className="menu">
-            <button type="button" onClick={() => setNewOpen(!newOpen)}>New ▾</button>
-            {newOpen && (
-              <div className="menu-pop" onPointerLeave={() => setNewOpen(false)}>
-                {STOCK_LAYOUTS.map((stock) => (
-                  <button key={stock.id} type="button" onClick={() => { load(cloneLayout(stock), `Started from ${stock.name}. Undo brings back your old layout.`); setNewOpen(false); }}>
-                    From {stock.name}
-                  </button>
-                ))}
-                <button type="button" onClick={() => { load(blankLayout(), "Blank layout. Undo brings back your old layout."); setNewOpen(false); }}>
-                  Blank
-                </button>
-              </div>
-            )}
-          </div>
+          <button type="button" aria-haspopup="dialog" aria-expanded={newOpen} onClick={() => setNewOpen(true)}>New / Presets</button>
           <button type="button" onClick={() => setImportOpen(true)}>Import</button>
           <button type="button" onClick={exportJson}>Export</button>
         </div>
@@ -263,6 +342,20 @@ export function App() {
           <button type="button" title="Delete (Del)" disabled={!selected.length} onClick={remove}>Delete</button>
         </div>
 
+        <div className="group align" role="group" aria-label="Align and distribute">
+          {ALIGN_TOOLS.map((t) => (
+            <button key={t.mode} type="button" title={t.title} aria-label={t.title} disabled={selected.length < 2} onClick={() => align(t.mode)}>
+              {t.icon}
+            </button>
+          ))}
+          <button type="button" title="Distribute horizontally: equal gaps" aria-label="Distribute horizontally" disabled={selected.length < 3} onClick={() => distribute("x")}>
+            ⋯
+          </button>
+          <button type="button" title="Distribute vertically: equal gaps" aria-label="Distribute vertically" disabled={selected.length < 3} onClick={() => distribute("y")}>
+            ⋮
+          </button>
+        </div>
+
         <div className="group">
           <label className="check">
             <input type="checkbox" checked={prefs.snapOn} onChange={(e) => setPrefs({ ...prefs, snapOn: e.target.checked })} />
@@ -276,7 +369,16 @@ export function App() {
         <div className="group layers" role="tablist" aria-label="Layer preview">
           <span className="muted">Layer</span>
           {["", ...layers].map((name) => (
-            <button key={name || "base"} type="button" className={layer === name ? "active" : ""} onClick={() => setLayer(name)}>
+            <button
+              key={name || "base"}
+              type="button"
+              role="tab"
+              aria-selected={layer === name}
+              tabIndex={layer === name ? 0 : -1}
+              className={layer === name ? "active" : ""}
+              onClick={() => setLayer(name)}
+              onKeyDown={(e) => tabArrows(e, ["", ...layers], name, setLayer)}
+            >
               {name || "base"}
             </button>
           ))}
@@ -284,6 +386,12 @@ export function App() {
       </header>
 
       <main className="workspace">
+        <EditorBoundary
+          onReset={() => { dispatch({ type: "reset", value: lastGood.current === layout ? cloneLayout(CLASSIC_QWERTY) : lastGood.current }); setSelected([]); setLayer(""); }}
+          onUndo={() => dispatch({ type: "undo" })}
+          canUndo={history.past.length > 0}
+        >
+        <CommitProbe onGood={() => { lastGood.current = layout; }} />
         <section className="stage">
           <div className="stage-title">
             <span>{layout.name || "Untitled"}</span>
@@ -306,18 +414,29 @@ export function App() {
         </section>
 
         <aside className="sidebar">
-          <nav className="tabs">
-            {(["key", "layout", "share", "check"] as Tab[]).map((t) => (
-              <button key={t} type="button" className={tab === t ? "active" : ""} onClick={() => setTab(t)}>
+          <nav className="tabs" role="tablist" aria-label="Sidebar">
+            {TABS.map((t) => (
+              <button
+                key={t}
+                id={`tab-${t}`}
+                type="button"
+                role="tab"
+                aria-selected={tab === t}
+                aria-controls="sidebar-panel"
+                tabIndex={tab === t ? 0 : -1}
+                className={tab === t ? "active" : ""}
+                onClick={() => setTab(t)}
+                onKeyDown={(e) => tabArrows(e, TABS, t, setTab)}
+              >
                 {t === "check" ? (
-                  <>Check {errorCount ? <span className="badge err">{errorCount}</span> : issues.length ? <span className="badge warn">{issues.length}</span> : <span className="badge ok">✓</span>}</>
+                  <>Check {errorCount ? <span className="badge err">{errorCount}</span> : issues.length + importFixes.length ? <span className="badge warn">{issues.length + importFixes.length}</span> : <span className="badge ok">✓</span>}</>
                 ) : (
                   t[0].toUpperCase() + t.slice(1)
                 )}
               </button>
             ))}
           </nav>
-          <div className="panel">
+          <div className="panel" id="sidebar-panel" role="tabpanel" aria-labelledby={`tab-${tab}`}>
             {tab === "key" && (
               <Inspector layout={layout} selected={selected} onApply={apply} onDuplicate={duplicate} onDelete={remove} onAdd={addKey} />
             )}
@@ -330,12 +449,19 @@ export function App() {
               />
             )}
             {tab === "share" && <SharePanel layout={cleaned} layer={layer} valid={!errorCount} onExport={exportJson} />}
-            {tab === "check" && <IssuesPanel issues={issues} onSelectKey={(i) => { setSelected([i]); setTab("key"); }} />}
+            {tab === "check" && (
+              <IssuesPanel issues={issues} fixes={importFixes} onDismissFixes={() => setImportFixes([])} onSelectKey={(i) => { setSelected([i]); setTab("key"); }} />
+            )}
           </div>
         </aside>
+        </EditorBoundary>
       </main>
 
       {importOpen && <ImportDialog onImport={importText} onClose={() => setImportOpen(false)} />}
+      {newOpen && <PresetDialog onClose={() => setNewOpen(false)} onPick={(preset) => {
+        load(preset, `Started from ${preset.name}. Undo brings back your old layout.`);
+        setNewOpen(false);
+      }} />}
       {dragOver && <div className="dropzone">Drop a layout .json to import it</div>}
       {toast && <div className="toast" role="status">{toast}</div>}
     </div>

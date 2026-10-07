@@ -1,5 +1,6 @@
 import QRCode from "qrcode";
 import { useEffect, useState } from "react";
+import { copyText } from "../lib/clipboard";
 import { appLink, encodeLayout, studioLink } from "../lib/share";
 import type { Layout } from "../lib/types";
 import { PhonePreview } from "./PhonePreview";
@@ -9,21 +10,6 @@ interface Props {
   layer: string;
   valid: boolean;
   onExport: () => void;
-}
-
-export async function copyText(text: string): Promise<boolean> {
-  try {
-    await navigator.clipboard.writeText(text);
-    return true;
-  } catch {
-    const ta = document.createElement("textarea");
-    ta.value = text;
-    document.body.appendChild(ta);
-    ta.select();
-    const ok = document.execCommand("copy");
-    ta.remove();
-    return ok;
-  }
 }
 
 export function SharePanel({ layout, layer, valid, onExport }: Props) {
