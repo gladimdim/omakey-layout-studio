@@ -80,6 +80,13 @@ layout decides what a key types, exactly as with a real keyboard, so a
 QWERTY-positioned layout types Ukrainian when the desktop is switched to
 Ukrainian. Labels are only what the phone draws.
 
+Two codes are the app's own: `KEY_COPY` copies what's selected on the
+computer and `KEY_PASTE` pastes there. The app presses Ctrl+Insert and
+Shift+Insert for them, which copy and paste in terminals too, where few
+programs know the Copy and Paste keys. With omakeyd the phone's clipboard
+joins in: a copy lands on the phone as well, and a paste brings the phone's
+clipboard when it has something newer.
+
 ## Layers
 
 While a layer key is held, every key with an entry for that layer in its
